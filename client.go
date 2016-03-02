@@ -79,36 +79,44 @@ func (c *basicAuthClient) DoWithBody(req *http.Request, r io.ReadSeeker) (*http.
 // httpbakey.Client.VisitWebPage to perform an OAuth login interaction.
 func UbuntuSSOOAuthVisitWebPage(client *http.Client, tok *usso.SSOData) func(u *url.URL) error {
 	return func(u *url.URL) error {
-		return ussoOAuthVisit(client, tok, u)
+		lm, err := LoginMethods(client, u)
+		if err != nil {
+			return err
+		}
+		if lm.UbuntuSSOOAuth == "" {
+			return errgo.New("Ubuntu SSO OAuth login not supported")
+		}
+		return UssoOAuthVisit(client, lm.UbuntuSSOOAuth, tok, u)
 	}
 }
 
-func ussoOAuthVisit(client *http.Client, tok *usso.SSOData, u *url.URL) error {
+func LoginMethods(client *http.Client, u *url.URL) (*params.LoginMethods, error) {
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
-		return errgo.Notef(err, "cannot create request")
+		return nil, errgo.Notef(err, "cannot create request")
 	}
 	req.Header.Set("Accept", "application/json")
 	resp, err := client.Do(req)
 	if err != nil {
-		return errgo.Notef(err, "cannot do request")
+		return nil, errgo.Notef(err, "cannot do request")
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		var herr httpbakery.Error
 		if err := httprequest.UnmarshalJSONResponse(resp, &herr); err != nil {
-			return errgo.Notef(err, "cannot unmarshal error")
+			return nil, errgo.Notef(err, "cannot unmarshal error")
 		}
-		return &herr
+		return nil, &herr
 	}
 	var lm params.LoginMethods
 	if err := httprequest.UnmarshalJSONResponse(resp, &lm); err != nil {
-		return errgo.Notef(err, "cannot unmarshal login methods")
+		return nil, errgo.Notef(err, "cannot unmarshal login methods")
 	}
-	if lm.UbuntuSSOOAuth == "" {
-		return errgo.New("Ubuntu SSO OAuth login not supported")
-	}
-	req, err = http.NewRequest("GET", lm.UbuntuSSOOAuth, nil)
+	return &lm, nil
+}
+
+func UssoOAuthVisit(client *http.Client, ussoAuthUrl string, tok *usso.SSOData, u *url.URL) error {
+	req, err := http.NewRequest("GET", ussoAuthUrl, nil)
 	if err != nil {
 		return errgo.Notef(err, "cannot create request")
 	}
@@ -123,7 +131,7 @@ func ussoOAuthVisit(client *http.Client, tok *usso.SSOData, u *url.URL) error {
 	if err := tok.SignRequest(&rp, req); err != nil {
 		return errgo.Notef(err, "cannot sign request")
 	}
-	resp, err = client.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return errgo.Notef(err, "cannot do request")
 	}
