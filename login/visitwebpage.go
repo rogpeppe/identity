@@ -15,7 +15,7 @@ import (
 // VisitWebPage returns a function which will allow authentication with usso
 // via the cli.
 // The user will be prompted for username, password and any two factor authentication
-// code via the command line, an oath token will be obtained and saved to disk.:w
+// code via the command line, an oath token will be obtained and saved to disk.
 func VisitWebPage(ctx *cmd.Context, client *http.Client, tokenPath string) func(*url.URL) error {
 	return func(u *url.URL) error {
 		lm, err := idmclient.LoginMethods(client, u)
@@ -31,7 +31,7 @@ func VisitWebPage(ctx *cmd.Context, client *http.Client, tokenPath string) func(
 					return err
 				}
 			}
-			return idmclient.UssoOAuthVisit(client, lm.UbuntuSSOOAuth, tok, u)
+			return idmclient.UbuntuSSOOAuthVisit(client, lm.UbuntuSSOOAuth, tok, u)
 		}
 		return httpbakery.OpenWebBrowser(u)
 	}

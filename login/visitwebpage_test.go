@@ -20,10 +20,6 @@ import (
 	"github.com/juju/identity/params"
 )
 
-// TODO
-// 1. Add Test below for user no enterting anything, test returns error.
-// 2. Add Test for existing token file, check login works but user not prompted.
-
 type visitWebPageSuite struct {
 	testing.CleanupSuite
 	server *httptest.Server

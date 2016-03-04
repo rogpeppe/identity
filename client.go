@@ -86,10 +86,11 @@ func UbuntuSSOOAuthVisitWebPage(client *http.Client, tok *usso.SSOData) func(u *
 		if lm.UbuntuSSOOAuth == "" {
 			return errgo.New("Ubuntu SSO OAuth login not supported")
 		}
-		return UssoOAuthVisit(client, lm.UbuntuSSOOAuth, tok, u)
+		return UbuntuSSOOAuthVisit(client, lm.UbuntuSSOOAuth, tok, u)
 	}
 }
 
+// LoginMethods returns the available login methods for the given url.
 func LoginMethods(client *http.Client, u *url.URL) (*params.LoginMethods, error) {
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
@@ -115,7 +116,8 @@ func LoginMethods(client *http.Client, u *url.URL) (*params.LoginMethods, error)
 	return &lm, nil
 }
 
-func UssoOAuthVisit(client *http.Client, ussoAuthUrl string, tok *usso.SSOData, u *url.URL) error {
+// UbuntuSSOOAuthVisit attempts to visit the given oauth url.
+func UbuntuSSOOAuthVisit(client *http.Client, ussoAuthUrl string, tok *usso.SSOData, u *url.URL) error {
 	req, err := http.NewRequest("GET", ussoAuthUrl, nil)
 	if err != nil {
 		return errgo.Notef(err, "cannot create request")

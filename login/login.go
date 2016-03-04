@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 
 	"github.com/juju/cmd"
 	"github.com/juju/usso"
@@ -54,10 +55,12 @@ func readUSSOParams(ctx *cmd.Context, twoFactor bool) (email, password, otp stri
 	if err != nil {
 		return "", "", "", errgo.Notef(err, "cannot read email address")
 	}
+	email = strings.TrimSuffix(email, "\n")
 	pass, err := readPassword(ctx, br)
 	if err != nil {
 		return "", "", "", errgo.Notef(err, "cannot read password")
 	}
+	pass = strings.TrimSuffix(pass, "\n")
 	fmt.Fprintln(ctx.Stderr)
 	if twoFactor {
 		fmt.Fprint(ctx.Stderr, "Two-factor auth (Enter for none): ")
@@ -66,8 +69,9 @@ func readUSSOParams(ctx *cmd.Context, twoFactor bool) (email, password, otp stri
 		if err != nil {
 			return "", "", "", errgo.Notef(err, "cannot read verification code address")
 		}
+		otp = strings.TrimSuffix(otp, "\n")
 	}
-	return email[:len(email)-1], pass[:len(pass)-1], otp[:len(otp)-1], nil
+	return email, pass, otp, nil
 }
 
 // SaveToken stores an Ubuntu SSO OAuth token.
