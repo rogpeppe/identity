@@ -4,7 +4,6 @@
 package login_test
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,11 +12,11 @@ import (
 	"net/http/httptest"
 	"net/url"
 
-	"github.com/juju/cmd/cmdtesting"
 	"github.com/juju/testing"
 	jc "github.com/juju/testing/checkers"
 	"github.com/juju/usso"
 	gc "gopkg.in/check.v1"
+	"gopkg.in/juju/environschema.v1/form"
 
 	"github.com/juju/idmclient/login"
 	"github.com/juju/idmclient/params"
@@ -41,9 +40,13 @@ func (s *visitWebPageSuite) TearDownTest(c *gc.C) {
 func (s *visitWebPageSuite) TestCorrectUserPasswordSentToUSSOServer(c *gc.C) {
 	ussoStub := &ussoServerStub{}
 	s.PatchValue(login.USSOServer, ussoStub)
-	ctx := cmdtesting.Context(c)
-	ctx.Stdin = bytes.NewBufferString("foobar\npass\n1234\n")
-	f := login.VisitWebPage(ctx, &http.Client{}, &testTokenStore{})
+	filler := &testFiller{
+		map[string]interface{}{
+			"username": "foobar",
+			"password": "pass",
+			"otp":      "1234",
+		}}
+	f := login.VisitWebPage(filler, &http.Client{}, &testTokenStore{})
 	u, err := url.Parse(s.server.URL)
 	c.Assert(err, jc.ErrorIsNil)
 	err = f(u)
@@ -55,9 +58,13 @@ func (s *visitWebPageSuite) TestLoginFailsToGetToken(c *gc.C) {
 	ussoStub := &ussoServerStub{}
 	ussoStub.SetErrors(errors.New("something failed"))
 	s.PatchValue(login.USSOServer, ussoStub)
-	ctx := cmdtesting.Context(c)
-	ctx.Stdin = bytes.NewBufferString("foobar\npass\n1234\n")
-	f := login.VisitWebPage(ctx, &http.Client{}, &testTokenStore{})
+	filler := &testFiller{
+		map[string]interface{}{
+			"username": "foobar",
+			"password": "pass",
+			"otp":      "1234",
+		}}
+	f := login.VisitWebPage(filler, &http.Client{}, &testTokenStore{})
 	u, err := url.Parse(s.server.URL)
 	c.Assert(err, jc.ErrorIsNil)
 	err = f(u)
@@ -67,7 +74,7 @@ func (s *visitWebPageSuite) TestLoginFailsToGetToken(c *gc.C) {
 func (s *visitWebPageSuite) TestLoginWithExistingToken(c *gc.C) {
 	ussoStub := &ussoServerStub{}
 	s.PatchValue(login.USSOServer, ussoStub)
-	f := login.VisitWebPage(cmdtesting.Context(c), &http.Client{}, &testTokenStore{tok: &usso.SSOData{}})
+	f := login.VisitWebPage(&testFiller{}, &http.Client{}, &testTokenStore{tok: &usso.SSOData{}})
 	u, err := url.Parse(s.server.URL)
 	c.Assert(err, jc.ErrorIsNil)
 	err = f(u)
@@ -76,14 +83,18 @@ func (s *visitWebPageSuite) TestLoginWithExistingToken(c *gc.C) {
 }
 
 func (s *visitWebPageSuite) TestLoginWithExistingMalformedToken(c *gc.C) {
-	ctx := cmdtesting.Context(c)
-	ctx.Stdin = bytes.NewBufferString("foobar\npass\n1234\n")
 	ussoStub := &ussoServerStub{}
 	s.PatchValue(login.USSOServer, ussoStub)
+	filler := &testFiller{
+		map[string]interface{}{
+			"username": "foobar",
+			"password": "pass",
+			"otp":      "1234",
+		}}
 	tokenPath := fmt.Sprintf("%s/token", c.MkDir())
 	err := ioutil.WriteFile(tokenPath, []byte("foobar"), 0600) // Write a malformed token
 	c.Assert(err, jc.ErrorIsNil)
-	f := login.VisitWebPage(ctx, &http.Client{}, login.NewFileTokenStore(tokenPath))
+	f := login.VisitWebPage(filler, &http.Client{}, login.NewFileTokenStore(tokenPath))
 	u, err := url.Parse(s.server.URL)
 	c.Assert(err, jc.ErrorIsNil)
 	err = f(u)
@@ -94,14 +105,44 @@ func (s *visitWebPageSuite) TestLoginWithExistingMalformedToken(c *gc.C) {
 func (s *visitWebPageSuite) TestVisitWebPageWorksIfNilStoreGiven(c *gc.C) {
 	ussoStub := &ussoServerStub{}
 	s.PatchValue(login.USSOServer, ussoStub)
-	ctx := cmdtesting.Context(c)
-	ctx.Stdin = bytes.NewBufferString("foobar\npass\n1234\n")
-	f := login.VisitWebPage(ctx, &http.Client{}, nil)
+	filler := &testFiller{
+		map[string]interface{}{
+			"username": "foobar",
+			"password": "pass",
+			"otp":      "1234",
+		}}
+	f := login.VisitWebPage(filler, &http.Client{}, nil)
 	u, err := url.Parse(s.server.URL)
 	c.Assert(err, jc.ErrorIsNil)
 	err = f(u)
 	c.Assert(err, jc.ErrorIsNil)
 	ussoStub.CheckCall(c, 0, "GetTokenWithOTP", "foobar", "pass", "1234", "charm")
+}
+
+func (s *visitWebPageSuite) TestFailedToReadLoginParameters(c *gc.C) {
+	ussoStub := &ussoServerStub{}
+	s.PatchValue(login.USSOServer, ussoStub)
+	filler := &errFiller{}
+	f := login.VisitWebPage(filler, &http.Client{}, &testTokenStore{})
+	u, err := url.Parse(s.server.URL)
+	c.Assert(err, jc.ErrorIsNil)
+	err = f(u)
+	c.Assert(err, gc.ErrorMatches, "cannot read login parameters: something failed")
+	ussoStub.CheckNoCalls(c)
+}
+
+type testFiller struct {
+	form map[string]interface{}
+}
+
+func (t *testFiller) Fill(f form.Form) (map[string]interface{}, error) {
+	return t.form, nil
+}
+
+type errFiller struct{}
+
+func (t *errFiller) Fill(f form.Form) (map[string]interface{}, error) {
+	return nil, errors.New("something failed")
 }
 
 type ussoServerStub struct {

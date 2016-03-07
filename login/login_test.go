@@ -4,12 +4,10 @@
 package login_test
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 
-	"github.com/juju/cmd/cmdtesting"
 	jc "github.com/juju/testing/checkers"
 	"github.com/juju/usso"
 	gc "gopkg.in/check.v1"
@@ -21,34 +19,6 @@ type loginSuite struct {
 }
 
 var _ = gc.Suite(&loginSuite{})
-
-func (s *loginSuite) TestReadUssoParamsWithTwoFactor(c *gc.C) {
-	ctx := cmdtesting.Context(c)
-	ctx.Stdin = bytes.NewBufferString("foobar\npass\n1234\n")
-	email, password, otp, err := login.ReadUSSOParams(ctx, true)
-	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(email, gc.Equals, "foobar")
-	c.Assert(password, gc.Equals, "pass")
-	c.Assert(otp, gc.Equals, "1234")
-	c.Assert(cmdtesting.Stderr(ctx), gc.Equals,
-		`Login to https://jujucharms.com:
-Username: Password: 
-Two-factor auth (Enter for none): `)
-}
-
-func (s *loginSuite) TestReadUssoParamsNoTwoFactor(c *gc.C) {
-	ctx := cmdtesting.Context(c)
-	ctx.Stdin = bytes.NewBufferString("foobar\npass\n\n")
-	email, password, otp, err := login.ReadUSSOParams(ctx, true)
-	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(email, gc.Equals, "foobar")
-	c.Assert(password, gc.Equals, "pass")
-	c.Assert(otp, gc.Equals, "")
-	c.Assert(cmdtesting.Stderr(ctx), gc.Equals,
-		`Login to https://jujucharms.com:
-Username: Password: 
-Two-factor auth (Enter for none): `)
-}
 
 func (s *loginSuite) TestPutGetToken(c *gc.C) {
 	token := &usso.SSOData{

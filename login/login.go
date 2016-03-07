@@ -6,17 +6,17 @@
 package login
 
 import (
-	"bufio"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
-	"os"
-	"strings"
+	"net/http"
+	"net/url"
 
-	"github.com/juju/cmd"
+	"github.com/juju/httprequest"
 	"github.com/juju/usso"
-	"golang.org/x/crypto/ssh/terminal"
 	"gopkg.in/errgo.v1"
+	"gopkg.in/juju/environschema.v1"
+	"gopkg.in/juju/environschema.v1/form"
+	"gopkg.in/macaroon-bakery.v1/httpbakery"
 )
 
 type tokenGetter interface {
@@ -26,14 +26,20 @@ type tokenGetter interface {
 // This is defined here to allow it to be stubbed out in tests
 var ussoServer tokenGetter = usso.ProductionUbuntuSSOServer
 
-// loginUSSO reads login parameters from ctxt.Stdin and then returns an
-// oauth token from Ubuntu SSO.
-func loginUSSO(ctx *cmd.Context, twoFactor bool, store TokenStore) (*usso.SSOData, error) {
-	email, pass, otp, err := readUSSOParams(ctx, twoFactor)
+// loginUSSO completes the login information using the provided filler
+// and attempts to obtain a USSO token using this information.
+// If the store is non-nil it is used to store this token.
+func loginUSSO(filler form.Filler, store TokenStore) (*usso.SSOData, error) {
+	login, err := filler.Fill(ussoLoginForm)
 	if err != nil {
 		return nil, errgo.Notef(err, "cannot read login parameters")
 	}
-	tok, err := ussoServer.GetTokenWithOTP(email, pass, otp, "charm")
+	tok, err := ussoServer.GetTokenWithOTP(
+		login["username"].(string),
+		login["password"].(string),
+		login["otp"].(string),
+		"charm",
+	)
 	if err != nil {
 		return nil, errgo.Notef(err, "cannot get token")
 	}
@@ -43,41 +49,59 @@ func loginUSSO(ctx *cmd.Context, twoFactor bool, store TokenStore) (*usso.SSODat
 	return tok, nil
 }
 
-func readPassword(ctx *cmd.Context, br *bufio.Reader) (string, error) {
-	fmt.Fprint(ctx.Stderr, "Password: ")
-	stdin, ok := ctx.Stdin.(*os.File)
-	if !ok || !terminal.IsTerminal(int(stdin.Fd())) {
-		return br.ReadString('\n')
-	}
-	pass, err := terminal.ReadPassword(int(stdin.Fd()))
-	return string(pass), err
+var ussoLoginForm = form.Form{
+	Fields: environschema.Fields{
+		"username": environschema.Attr{
+			Description: "Username",
+			Type:        environschema.Tstring,
+			Mandatory:   true,
+			Group:       "1",
+		},
+		"password": environschema.Attr{
+			Description: "Password",
+			Type:        environschema.Tstring,
+			Mandatory:   true,
+			Secret:      true,
+			Group:       "1",
+		},
+		"otp": environschema.Attr{
+			Description: "Two-factor auth",
+			Type:        environschema.Tstring,
+			Group:       "2",
+		},
+	},
 }
 
-func readUSSOParams(ctx *cmd.Context, twoFactor bool) (email, password, otp string, err error) {
-	fmt.Fprintln(ctx.Stderr, "Login to https://jujucharms.com:")
-	br := bufio.NewReader(ctx.Stdin)
-	fmt.Fprint(ctx.Stderr, "Username: ")
-	email, err = br.ReadString('\n')
+// DoSignedRequest signs a request to the given url with the provided token.
+func DoSignedRequest(client *http.Client, ussoAuthUrl string, tok *usso.SSOData, u *url.URL) error {
+	req, err := http.NewRequest("GET", ussoAuthUrl, nil)
 	if err != nil {
-		return "", "", "", errgo.Notef(err, "cannot read email address")
+		return errgo.Notef(err, "cannot create request")
 	}
-	email = strings.TrimSuffix(email, "\n")
-	pass, err := readPassword(ctx, br)
+	base := *req.URL
+	base.RawQuery = ""
+	rp := usso.RequestParameters{
+		HTTPMethod:      req.Method,
+		BaseURL:         base.String(),
+		Params:          req.URL.Query(),
+		SignatureMethod: usso.HMACSHA1{},
+	}
+	if err := tok.SignRequest(&rp, req); err != nil {
+		return errgo.Notef(err, "cannot sign request")
+	}
+	resp, err := client.Do(req)
 	if err != nil {
-		return "", "", "", errgo.Notef(err, "cannot read password")
+		return errgo.Notef(err, "cannot do request")
 	}
-	pass = strings.TrimSuffix(pass, "\n")
-	fmt.Fprintln(ctx.Stderr)
-	if twoFactor {
-		fmt.Fprint(ctx.Stderr, "Two-factor auth (Enter for none): ")
-		var err error
-		otp, err = br.ReadString('\n')
-		if err != nil {
-			return "", "", "", errgo.Notef(err, "cannot read verification code address")
-		}
-		otp = strings.TrimSuffix(otp, "\n")
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusOK {
+		return nil
 	}
-	return email, pass, otp, nil
+	var herr httpbakery.Error
+	if err := httprequest.UnmarshalJSONResponse(resp, &herr); err != nil {
+		return errgo.Notef(err, "cannot unmarshal error")
+	}
+	return &herr
 }
 
 // TokenStore defines the interface for something that can store and returns oauth tokens.

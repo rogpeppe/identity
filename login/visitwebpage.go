@@ -8,10 +8,11 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/juju/cmd"
-	"github.com/juju/idmclient"
 	"github.com/juju/usso"
+	"gopkg.in/juju/environschema.v1/form"
 	"gopkg.in/macaroon-bakery.v1/httpbakery"
+
+	"github.com/juju/idmclient"
 )
 
 // VisitWebPage returns a function which will allow authentication with USSO
@@ -20,7 +21,7 @@ import (
 // code via the command line. Existing oauth tokens can be obtained, or new ones stored
 // If non-nil, the given TokenStore is used to store the oauth token obtained during
 // the login process so that less interaction may be required in future.
-func VisitWebPage(ctx *cmd.Context, client *http.Client, store TokenStore) func(*url.URL) error {
+func VisitWebPage(filler form.Filler, client *http.Client, store TokenStore) func(*url.URL) error {
 	if store == nil {
 		store = &nopStore{}
 	}
@@ -33,12 +34,12 @@ func VisitWebPage(ctx *cmd.Context, client *http.Client, store TokenStore) func(
 			var tok *usso.SSOData
 			var err error
 			if tok, err = store.Get(); err != nil {
-				tok, err = loginUSSO(ctx, true, store)
+				tok, err = loginUSSO(filler, store)
 				if err != nil {
 					return err
 				}
 			}
-			return idmclient.UbuntuSSOOAuthVisitWebPage(client, lm.UbuntuSSOOAuth, tok, u)
+			return DoSignedRequest(client, lm.UbuntuSSOOAuth, tok, u)
 		}
 		return httpbakery.OpenWebBrowser(u)
 	}
