@@ -75,9 +75,11 @@ func NewServer() *Server {
 		router.Handle(route.Method, route.Path, route.Handle)
 	}
 	mux := http.NewServeMux()
-	httpbakery.AddDischargeHandler(mux, "/v1/discharger", srv.bakery, srv.check)
-	router.Handler("POST", "/v1/discharger/*rest", mux)
-	router.Handler("GET", "/v1/discharger/*rest", mux)
+	httpbakery.AddDischargeHandler(mux, "/", srv.bakery, srv.check)
+	router.Handler("POST", "/v1/discharger/*rest", http.StripPrefix("/v1/discharger", mux))
+	router.Handler("GET", "/v1/discharger/*rest", http.StripPrefix("/v1/discharger", mux))
+	router.Handler("POST", "/discharge", mux)
+	router.Handler("GET", "/publickey", mux)
 
 	srv.srv = httptest.NewServer(router)
 	srv.URL, err = url.Parse(srv.srv.URL)
