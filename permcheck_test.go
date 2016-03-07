@@ -5,8 +5,8 @@ import (
 
 	gc "gopkg.in/check.v1"
 
-	"github.com/juju/identity/idmclient"
-	"github.com/juju/identity/idmtest"
+	"github.com/juju/idmclient"
+	"github.com/juju/idmclient/idmtest"
 )
 
 type permCheckerSuite struct {

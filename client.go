@@ -13,7 +13,7 @@ import (
 	"gopkg.in/errgo.v1"
 	"gopkg.in/macaroon-bakery.v1/httpbakery"
 
-	"github.com/juju/identity/params"
+	"github.com/juju/idmclient/params"
 )
 
 // Note: tests for this code are in the server implementation.

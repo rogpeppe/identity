@@ -6,7 +6,7 @@ package params_test
 import (
 	gc "gopkg.in/check.v1"
 
-	"github.com/juju/identity/params"
+	"github.com/juju/idmclient/params"
 )
 
 type paramsSuite struct{}

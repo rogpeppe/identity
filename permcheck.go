@@ -9,7 +9,7 @@ import (
 	"github.com/juju/utils/cache"
 	"gopkg.in/errgo.v1"
 
-	"github.com/juju/identity/params"
+	"github.com/juju/idmclient/params"
 )
 
 // PermChecker provides a way to query ACLs using the identity client.

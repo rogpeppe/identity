@@ -20,7 +20,7 @@ import (
 	"gopkg.in/macaroon-bakery.v1/httpbakery"
 	"gopkg.in/macaroon-bakery.v1/httpbakery/agent"
 
-	"github.com/juju/identity/params"
+	"github.com/juju/idmclient/params"
 )
 
 // Server represents a mock identity server.
