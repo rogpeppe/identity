@@ -7,7 +7,7 @@ import (
 	"github.com/juju/httprequest"
 	"gopkg.in/macaroon.v1"
 
-	"github.com/juju/identity/params"
+	"github.com/juju/idmclient/params"
 )
 
 type client struct {

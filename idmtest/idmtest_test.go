@@ -11,9 +11,9 @@ import (
 	"gopkg.in/macaroon-bakery.v1/httpbakery"
 	"gopkg.in/macaroon.v1"
 
-	"github.com/juju/identity/idmclient"
-	"github.com/juju/identity/idmtest"
-	idmparams "github.com/juju/identity/params"
+	"github.com/juju/idmclient"
+	"github.com/juju/idmclient/idmtest"
+	idmparams "github.com/juju/idmclient/params"
 )
 
 type suite struct{}
