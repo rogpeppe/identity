@@ -1,3 +1,6 @@
+// Copyright 2016 Canonical Ltd.
+// Licensed under the LGPLv3, see LICENCE file for details.
+
 package login
 
 import (
@@ -22,7 +25,7 @@ var ussoServer (TokenGetter) = usso.ProductionUbuntuSSOServer
 
 // LoginUSSO reads login parameters from ctxt.Stdin and then retrieves an
 // oauth token from Ubuntu SSO.
-func LoginUSSO(ctx *cmd.Context, twoFactor bool, tokenPath string) (*usso.SSOData, error) {
+func LoginUSSO(ctx *cmd.Context, twoFactor bool, store TokenStore) (*usso.SSOData, error) {
 	email, pass, otp, err := readUSSOParams(ctx, twoFactor)
 	if err != nil {
 		return nil, errgo.Notef(err, "cannot read login parameters")
@@ -31,7 +34,7 @@ func LoginUSSO(ctx *cmd.Context, twoFactor bool, tokenPath string) (*usso.SSODat
 	if err != nil {
 		return nil, errgo.Notef(err, "cannot get token")
 	}
-	if err := SaveToken(tokenPath, tok); err != nil {
+	if err := store.SaveToken(tok); err != nil {
 		return nil, errgo.Notef(err, "cannot save token")
 	}
 	return tok, nil
@@ -74,21 +77,41 @@ func readUSSOParams(ctx *cmd.Context, twoFactor bool) (email, password, otp stri
 	return email, pass, otp, nil
 }
 
+// TokenStore defines the interface for something that can store and retrieve oauth tokens.
+type TokenStore interface {
+	// SaveToken stores an Ubuntu SSO OAuth token.
+	SaveToken(tok *usso.SSOData) error
+	// ReadToken retrieves an Ubuntu SSO OAuth token from store
+	ReadToken() (*usso.SSOData, error)
+}
+
+// FileTokenStore implements the TokenStore interface by storing the oauth token
+// in a json encoded format at the file path.
+type FileTokenStore struct {
+	path string
+}
+
+// NewFileTokenStore returns a new FileTokenStore for
+// storing the token in a json encoded file.
+func NewFileTokenStore(path string) *FileTokenStore {
+	return &FileTokenStore{path}
+}
+
 // SaveToken stores an Ubuntu SSO OAuth token.
-func SaveToken(path string, tok *usso.SSOData) error {
+func (f *FileTokenStore) SaveToken(tok *usso.SSOData) error {
 	data, err := json.Marshal(tok)
 	if err != nil {
 		return errgo.Notef(err, "cannot marshal token")
 	}
-	if err := ioutil.WriteFile(path, data, 0600); err != nil {
+	if err := ioutil.WriteFile(f.path, data, 0600); err != nil {
 		return errgo.Notef(err, "cannot write file")
 	}
 	return nil
 }
 
-// ReadToken loads an Ubuntu SSO OAuth token from the given path
-func ReadToken(path string) (*usso.SSOData, error) {
-	data, err := ioutil.ReadFile(path)
+// ReadToken retrieves an Ubuntu SSO OAuth token from store
+func (f *FileTokenStore) ReadToken() (*usso.SSOData, error) {
+	data, err := ioutil.ReadFile(f.path)
 	if err != nil {
 		return nil, errgo.Notef(err, "cannot read token")
 	}

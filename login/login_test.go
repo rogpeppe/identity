@@ -1,3 +1,6 @@
+// Copyright 2016 Canonical Ltd.
+// Licensed under the LGPLv3, see LICENCE file for details.
+
 package login_test
 
 import (
@@ -56,10 +59,11 @@ func (s *cliSuite) TestSaveReadToken(c *gc.C) {
 		TokenSecret:    "tokensecret",
 	}
 	path := fmt.Sprintf("%s/tokenFile", c.MkDir())
-	err := login.SaveToken(path, token)
+	store := login.NewFileTokenStore(path)
+	err := store.SaveToken(token)
 	c.Assert(err, jc.ErrorIsNil)
 
-	tok, err := login.ReadToken(path)
+	tok, err := store.ReadToken()
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(tok, gc.DeepEquals, token)
 }
@@ -68,7 +72,25 @@ func (s *cliSuite) TestReadInvalidToken(c *gc.C) {
 	path := fmt.Sprintf("%s/tokenFile", c.MkDir())
 	err := ioutil.WriteFile(path, []byte("foobar"), 0700)
 	c.Assert(err, jc.ErrorIsNil)
+	store := login.NewFileTokenStore(path)
 
-	_, err = login.ReadToken(path)
+	_, err = store.ReadToken()
 	c.Assert(err, gc.ErrorMatches, `cannot unmarshal token: invalid character 'o' in literal false \(expecting 'a'\)`)
+}
+
+type testTokenStore struct {
+	tok *usso.SSOData
+	err error
+}
+
+func (m *testTokenStore) SaveToken(tok *usso.SSOData) error {
+	m.tok = tok
+	return nil
+}
+
+func (m *testTokenStore) ReadToken() (*usso.SSOData, error) {
+	if m.tok == nil {
+		return nil, fmt.Errorf("no token")
+	}
+	return m.tok, m.err
 }

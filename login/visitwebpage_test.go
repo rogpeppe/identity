@@ -1,3 +1,6 @@
+// Copyright 2016 Canonical Ltd.
+// Licensed under the LGPLv3, see LICENCE file for details.
+
 package login_test
 
 import (
@@ -38,10 +41,9 @@ func (s *visitWebPageSuite) TearDownTest(c *gc.C) {
 func (s *visitWebPageSuite) TestCorrectUserPasswordSentToUssoServer(c *gc.C) {
 	ussoStub := &ussoServerStub{}
 	s.PatchValue(login.UssoServer, ussoStub)
-	tmpdir := c.MkDir()
 	ctx := cmdtesting.Context(c)
 	ctx.Stdin = bytes.NewBufferString("foobar\npass\n1234\n")
-	f := login.VisitWebPage(ctx, &http.Client{}, fmt.Sprintf("%s/token", tmpdir))
+	f := login.VisitWebPage(ctx, &http.Client{}, &testTokenStore{})
 	u, err := url.Parse(s.server.URL)
 	c.Assert(err, jc.ErrorIsNil)
 	err = f(u)
@@ -53,10 +55,9 @@ func (s *visitWebPageSuite) TestLoginFailsToGetToken(c *gc.C) {
 	ussoStub := &ussoServerStub{}
 	ussoStub.SetErrors(errors.New("something failed"))
 	s.PatchValue(login.UssoServer, ussoStub)
-	tmpdir := c.MkDir()
 	ctx := cmdtesting.Context(c)
 	ctx.Stdin = bytes.NewBufferString("foobar\npass\n1234\n")
-	f := login.VisitWebPage(ctx, &http.Client{}, fmt.Sprintf("%s/token", tmpdir))
+	f := login.VisitWebPage(ctx, &http.Client{}, &testTokenStore{})
 	u, err := url.Parse(s.server.URL)
 	c.Assert(err, jc.ErrorIsNil)
 	err = f(u)
@@ -66,10 +67,7 @@ func (s *visitWebPageSuite) TestLoginFailsToGetToken(c *gc.C) {
 func (s *visitWebPageSuite) TestLoginWithExistingToken(c *gc.C) {
 	ussoStub := &ussoServerStub{}
 	s.PatchValue(login.UssoServer, ussoStub)
-	tokenPath := fmt.Sprintf("%s/token", c.MkDir())
-	err := login.SaveToken(tokenPath, &usso.SSOData{})
-	c.Assert(err, jc.ErrorIsNil)
-	f := login.VisitWebPage(cmdtesting.Context(c), &http.Client{}, tokenPath)
+	f := login.VisitWebPage(cmdtesting.Context(c), &http.Client{}, &testTokenStore{tok: &usso.SSOData{}})
 	u, err := url.Parse(s.server.URL)
 	c.Assert(err, jc.ErrorIsNil)
 	err = f(u)
@@ -85,7 +83,20 @@ func (s *visitWebPageSuite) TestLoginWithExistingMalformedToken(c *gc.C) {
 	tokenPath := fmt.Sprintf("%s/token", c.MkDir())
 	err := ioutil.WriteFile(tokenPath, []byte("foobar"), 0600) // Write a malformed token
 	c.Assert(err, jc.ErrorIsNil)
-	f := login.VisitWebPage(ctx, &http.Client{}, tokenPath)
+	f := login.VisitWebPage(ctx, &http.Client{}, login.NewFileTokenStore(tokenPath))
+	u, err := url.Parse(s.server.URL)
+	c.Assert(err, jc.ErrorIsNil)
+	err = f(u)
+	c.Assert(err, jc.ErrorIsNil)
+	ussoStub.CheckCall(c, 0, "GetTokenWithOTP", "foobar", "pass", "1234", "charm")
+}
+
+func (s *visitWebPageSuite) TestVisitWebPageWorksIfNilStoreGiven(c *gc.C) {
+	ussoStub := &ussoServerStub{}
+	s.PatchValue(login.UssoServer, ussoStub)
+	ctx := cmdtesting.Context(c)
+	ctx.Stdin = bytes.NewBufferString("foobar\npass\n1234\n")
+	f := login.VisitWebPage(ctx, &http.Client{}, nil)
 	u, err := url.Parse(s.server.URL)
 	c.Assert(err, jc.ErrorIsNil)
 	err = f(u)
