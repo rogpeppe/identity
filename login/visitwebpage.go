@@ -9,17 +9,17 @@ import (
 	"net/url"
 
 	"github.com/juju/cmd"
-	"github.com/juju/identity/idmclient"
+	"github.com/juju/idmclient"
 	"github.com/juju/usso"
 	"gopkg.in/macaroon-bakery.v1/httpbakery"
 )
 
-// VisitWebPage returns a function which will allow authentication with usso
+// VisitWebPage returns a function which will allow authentication with USSO
 // via the cli.
 // The user will be prompted for username, password and any two factor authentication
 // code via the command line. Existing oauth tokens can be obtained, or new ones stored
-// using the given TokenStore. If no TokenStore is specified then the nopStore will be
-// used.
+// If non-nil, the given TokenStore is used to store the oauth token obtained during
+// the login process so that less interaction may be required in future.
 func VisitWebPage(ctx *cmd.Context, client *http.Client, store TokenStore) func(*url.URL) error {
 	if store == nil {
 		store = &nopStore{}
@@ -32,13 +32,13 @@ func VisitWebPage(ctx *cmd.Context, client *http.Client, store TokenStore) func(
 		if lm.UbuntuSSOOAuth != "" {
 			var tok *usso.SSOData
 			var err error
-			if tok, err = store.ReadToken(); err != nil {
-				tok, err = LoginUSSO(ctx, true, store)
+			if tok, err = store.Get(); err != nil {
+				tok, err = loginUSSO(ctx, true, store)
 				if err != nil {
 					return err
 				}
 			}
-			return idmclient.UbuntuSSOOAuthVisit(client, lm.UbuntuSSOOAuth, tok, u)
+			return idmclient.UbuntuSSOOAuthVisitWebPage(client, lm.UbuntuSSOOAuth, tok, u)
 		}
 		return httpbakery.OpenWebBrowser(u)
 	}
@@ -46,10 +46,10 @@ func VisitWebPage(ctx *cmd.Context, client *http.Client, store TokenStore) func(
 
 type nopStore struct{}
 
-func (n *nopStore) SaveToken(tok *usso.SSOData) error {
+func (n *nopStore) Put(tok *usso.SSOData) error {
 	return nil
 }
 
-func (n *nopStore) ReadToken() (*usso.SSOData, error) {
+func (n *nopStore) Get() (*usso.SSOData, error) {
 	return nil, errors.New("no token storage")
 }

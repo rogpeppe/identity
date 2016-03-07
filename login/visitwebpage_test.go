@@ -19,8 +19,8 @@ import (
 	"github.com/juju/usso"
 	gc "gopkg.in/check.v1"
 
-	"github.com/juju/identity/login"
-	"github.com/juju/identity/params"
+	"github.com/juju/idmclient/login"
+	"github.com/juju/idmclient/params"
 )
 
 type visitWebPageSuite struct {
@@ -38,9 +38,9 @@ func (s *visitWebPageSuite) TearDownTest(c *gc.C) {
 	s.server.Close()
 }
 
-func (s *visitWebPageSuite) TestCorrectUserPasswordSentToUssoServer(c *gc.C) {
+func (s *visitWebPageSuite) TestCorrectUserPasswordSentToUSSOServer(c *gc.C) {
 	ussoStub := &ussoServerStub{}
-	s.PatchValue(login.UssoServer, ussoStub)
+	s.PatchValue(login.USSOServer, ussoStub)
 	ctx := cmdtesting.Context(c)
 	ctx.Stdin = bytes.NewBufferString("foobar\npass\n1234\n")
 	f := login.VisitWebPage(ctx, &http.Client{}, &testTokenStore{})
@@ -54,7 +54,7 @@ func (s *visitWebPageSuite) TestCorrectUserPasswordSentToUssoServer(c *gc.C) {
 func (s *visitWebPageSuite) TestLoginFailsToGetToken(c *gc.C) {
 	ussoStub := &ussoServerStub{}
 	ussoStub.SetErrors(errors.New("something failed"))
-	s.PatchValue(login.UssoServer, ussoStub)
+	s.PatchValue(login.USSOServer, ussoStub)
 	ctx := cmdtesting.Context(c)
 	ctx.Stdin = bytes.NewBufferString("foobar\npass\n1234\n")
 	f := login.VisitWebPage(ctx, &http.Client{}, &testTokenStore{})
@@ -66,7 +66,7 @@ func (s *visitWebPageSuite) TestLoginFailsToGetToken(c *gc.C) {
 
 func (s *visitWebPageSuite) TestLoginWithExistingToken(c *gc.C) {
 	ussoStub := &ussoServerStub{}
-	s.PatchValue(login.UssoServer, ussoStub)
+	s.PatchValue(login.USSOServer, ussoStub)
 	f := login.VisitWebPage(cmdtesting.Context(c), &http.Client{}, &testTokenStore{tok: &usso.SSOData{}})
 	u, err := url.Parse(s.server.URL)
 	c.Assert(err, jc.ErrorIsNil)
@@ -79,7 +79,7 @@ func (s *visitWebPageSuite) TestLoginWithExistingMalformedToken(c *gc.C) {
 	ctx := cmdtesting.Context(c)
 	ctx.Stdin = bytes.NewBufferString("foobar\npass\n1234\n")
 	ussoStub := &ussoServerStub{}
-	s.PatchValue(login.UssoServer, ussoStub)
+	s.PatchValue(login.USSOServer, ussoStub)
 	tokenPath := fmt.Sprintf("%s/token", c.MkDir())
 	err := ioutil.WriteFile(tokenPath, []byte("foobar"), 0600) // Write a malformed token
 	c.Assert(err, jc.ErrorIsNil)
@@ -93,7 +93,7 @@ func (s *visitWebPageSuite) TestLoginWithExistingMalformedToken(c *gc.C) {
 
 func (s *visitWebPageSuite) TestVisitWebPageWorksIfNilStoreGiven(c *gc.C) {
 	ussoStub := &ussoServerStub{}
-	s.PatchValue(login.UssoServer, ussoStub)
+	s.PatchValue(login.USSOServer, ussoStub)
 	ctx := cmdtesting.Context(c)
 	ctx.Stdin = bytes.NewBufferString("foobar\npass\n1234\n")
 	f := login.VisitWebPage(ctx, &http.Client{}, nil)

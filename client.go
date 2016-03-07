@@ -75,22 +75,9 @@ func (c *basicAuthClient) DoWithBody(req *http.Request, r io.ReadSeeker) (*http.
 	return c.client.DoWithBody(req, r)
 }
 
-// UbuntuSSOOAuthVisitWebPage returns a function that can be used with
-// httpbakey.Client.VisitWebPage to perform an OAuth login interaction.
-func UbuntuSSOOAuthVisitWebPage(client *http.Client, tok *usso.SSOData) func(u *url.URL) error {
-	return func(u *url.URL) error {
-		lm, err := LoginMethods(client, u)
-		if err != nil {
-			return err
-		}
-		if lm.UbuntuSSOOAuth == "" {
-			return errgo.New("Ubuntu SSO OAuth login not supported")
-		}
-		return UbuntuSSOOAuthVisit(client, lm.UbuntuSSOOAuth, tok, u)
-	}
-}
-
-// LoginMethods returns the available login methods for the given url.
+// LoginMethods returns information about the available login methods
+// for the given URL, which is expected to be a URL as passed to
+// a VisitWebPage function during the macaroon bakery discharge process.
 func LoginMethods(client *http.Client, u *url.URL) (*params.LoginMethods, error) {
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
@@ -116,8 +103,9 @@ func LoginMethods(client *http.Client, u *url.URL) (*params.LoginMethods, error)
 	return &lm, nil
 }
 
-// UbuntuSSOOAuthVisit attempts to visit the given oauth url.
-func UbuntuSSOOAuthVisit(client *http.Client, ussoAuthUrl string, tok *usso.SSOData, u *url.URL) error {
+// UbuntuSSOOAuthVisitWebPage returns a function that can be used with
+// httpbakey.Client.VisitWebPage to perform an OAuth login interaction using USSO.
+func UbuntuSSOOAuthVisitWebPage(client *http.Client, ussoAuthUrl string, tok *usso.SSOData, u *url.URL) error {
 	req, err := http.NewRequest("GET", ussoAuthUrl, nil)
 	if err != nil {
 		return errgo.Notef(err, "cannot create request")

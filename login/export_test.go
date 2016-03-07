@@ -5,5 +5,5 @@ package login
 
 var (
 	ReadUSSOParams = readUSSOParams
-	UssoServer     = &ussoServer
+	USSOServer     = &ussoServer
 )
