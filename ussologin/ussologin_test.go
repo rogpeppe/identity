@@ -1,18 +1,19 @@
 // Copyright 2016 Canonical Ltd.
 // Licensed under the LGPLv3, see LICENCE file for details.
 
-package login_test
+package ussologin_test
 
 import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 
+	"github.com/juju/testing"
 	jc "github.com/juju/testing/checkers"
 	"github.com/juju/usso"
 	gc "gopkg.in/check.v1"
 
-	"github.com/juju/idmclient/login"
+	"github.com/juju/idmclient/ussologin"
 )
 
 type loginSuite struct {
@@ -30,7 +31,7 @@ func (s *loginSuite) TestPutGetToken(c *gc.C) {
 		TokenSecret:    "tokensecret",
 	}
 	path := fmt.Sprintf("%s/tokenFile", c.MkDir())
-	store := login.NewFileTokenStore(path)
+	store := ussologin.NewFileTokenStore(path)
 	err := store.Put(token)
 	c.Assert(err, jc.ErrorIsNil)
 
@@ -49,25 +50,27 @@ func (s *loginSuite) TestReadInvalidToken(c *gc.C) {
 	path := fmt.Sprintf("%s/tokenFile", c.MkDir())
 	err := ioutil.WriteFile(path, []byte("foobar"), 0700)
 	c.Assert(err, jc.ErrorIsNil)
-	store := login.NewFileTokenStore(path)
+	store := ussologin.NewFileTokenStore(path)
 
 	_, err = store.Get()
 	c.Assert(err, gc.ErrorMatches, `cannot unmarshal token: invalid character 'o' in literal false \(expecting 'a'\)`)
 }
 
 type testTokenStore struct {
+	testing.Stub
 	tok *usso.SSOData
-	err error
 }
 
 func (m *testTokenStore) Put(tok *usso.SSOData) error {
+	m.MethodCall(m, "Put", tok)
 	m.tok = tok
 	return nil
 }
 
 func (m *testTokenStore) Get() (*usso.SSOData, error) {
+	m.MethodCall(m, "Get")
 	if m.tok == nil {
 		return nil, fmt.Errorf("no token")
 	}
-	return m.tok, m.err
+	return m.tok, nil
 }

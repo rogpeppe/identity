@@ -1,9 +1,9 @@
 // Copyright 2016 Canonical Ltd.
 // Licensed under the LGPLv3, see LICENCE file for details.
 
-// Package login defines functionality used for allowing clients to authenticate
-// using USSO OAuth.
-package login
+// Package ussologin defines functionality used for allowing clients
+// to authenticate with the IDM server using USSO OAuth.
+package ussologin
 
 import (
 	"encoding/json"
@@ -24,17 +24,16 @@ type tokenGetter interface {
 }
 
 // This is defined here to allow it to be stubbed out in tests
-var ussoServer tokenGetter = usso.ProductionUbuntuSSOServer
+var server tokenGetter = usso.ProductionUbuntuSSOServer
 
-// loginUSSO completes the login information using the provided filler
+// Login completes the login information using the provided filler
 // and attempts to obtain a USSO token using this information.
-// If the store is non-nil it is used to store this token.
-func loginUSSO(filler form.Filler, store TokenStore) (*usso.SSOData, error) {
-	login, err := filler.Fill(ussoLoginForm)
+func Login(filler form.Filler) (*usso.SSOData, error) {
+	login, err := filler.Fill(loginForm)
 	if err != nil {
 		return nil, errgo.Notef(err, "cannot read login parameters")
 	}
-	tok, err := ussoServer.GetTokenWithOTP(
+	tok, err := server.GetTokenWithOTP(
 		login["username"].(string),
 		login["password"].(string),
 		login["otp"].(string),
@@ -43,13 +42,10 @@ func loginUSSO(filler form.Filler, store TokenStore) (*usso.SSOData, error) {
 	if err != nil {
 		return nil, errgo.Notef(err, "cannot get token")
 	}
-	if err := store.Put(tok); err != nil {
-		return nil, errgo.Notef(err, "cannot save token")
-	}
 	return tok, nil
 }
 
-var ussoLoginForm = form.Form{
+var loginForm = form.Form{
 	Fields: environschema.Fields{
 		"username": environschema.Attr{
 			Description: "Username",
@@ -72,8 +68,8 @@ var ussoLoginForm = form.Form{
 	},
 }
 
-// DoSignedRequest signs a request to the given url with the provided token.
-func DoSignedRequest(client *http.Client, ussoAuthUrl string, tok *usso.SSOData, u *url.URL) error {
+// doSignedRequest performs a GET request to the given URL signed using the provided token.
+func doSignedRequest(client *http.Client, ussoAuthUrl string, tok *usso.SSOData, u *url.URL) error {
 	req, err := http.NewRequest("GET", ussoAuthUrl, nil)
 	if err != nil {
 		return errgo.Notef(err, "cannot create request")
