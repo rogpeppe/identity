@@ -9,7 +9,6 @@ import (
 	"net/url"
 
 	"github.com/juju/httprequest"
-	"github.com/juju/usso"
 	"gopkg.in/errgo.v1"
 	"gopkg.in/macaroon-bakery.v1/httpbakery"
 
@@ -75,67 +74,32 @@ func (c *basicAuthClient) DoWithBody(req *http.Request, r io.ReadSeeker) (*http.
 	return c.client.DoWithBody(req, r)
 }
 
-// UbuntuSSOOAuthVisitWebPage returns a function that can be used with
-// httpbakey.Client.VisitWebPage to perform an OAuth login interaction.
-func UbuntuSSOOAuthVisitWebPage(client *http.Client, tok *usso.SSOData) func(u *url.URL) error {
-	return func(u *url.URL) error {
-		return ussoOAuthVisit(client, tok, u)
-	}
-}
-
-func ussoOAuthVisit(client *http.Client, tok *usso.SSOData, u *url.URL) error {
+// LoginMethods returns information about the available login methods
+// for the given URL, which is expected to be a URL as passed to
+// a VisitWebPage function during the macaroon bakery discharge process.
+func LoginMethods(client *http.Client, u *url.URL) (*params.LoginMethods, error) {
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
-		return errgo.Notef(err, "cannot create request")
+		return nil, errgo.Notef(err, "cannot create request")
 	}
 	req.Header.Set("Accept", "application/json")
 	resp, err := client.Do(req)
 	if err != nil {
-		return errgo.Notef(err, "cannot do request")
+		return nil, errgo.Notef(err, "cannot do request")
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		var herr httpbakery.Error
 		if err := httprequest.UnmarshalJSONResponse(resp, &herr); err != nil {
-			return errgo.Notef(err, "cannot unmarshal error")
+			return nil, errgo.Notef(err, "cannot unmarshal error")
 		}
-		return &herr
+		return nil, &herr
 	}
 	var lm params.LoginMethods
 	if err := httprequest.UnmarshalJSONResponse(resp, &lm); err != nil {
-		return errgo.Notef(err, "cannot unmarshal login methods")
+		return nil, errgo.Notef(err, "cannot unmarshal login methods")
 	}
-	if lm.UbuntuSSOOAuth == "" {
-		return errgo.New("Ubuntu SSO OAuth login not supported")
-	}
-	req, err = http.NewRequest("GET", lm.UbuntuSSOOAuth, nil)
-	if err != nil {
-		return errgo.Notef(err, "cannot create request")
-	}
-	base := *req.URL
-	base.RawQuery = ""
-	rp := usso.RequestParameters{
-		HTTPMethod:      req.Method,
-		BaseURL:         base.String(),
-		Params:          req.URL.Query(),
-		SignatureMethod: usso.HMACSHA1{},
-	}
-	if err := tok.SignRequest(&rp, req); err != nil {
-		return errgo.Notef(err, "cannot sign request")
-	}
-	resp, err = client.Do(req)
-	if err != nil {
-		return errgo.Notef(err, "cannot do request")
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusOK {
-		return nil
-	}
-	var herr httpbakery.Error
-	if err := httprequest.UnmarshalJSONResponse(resp, &herr); err != nil {
-		return errgo.Notef(err, "cannot unmarshal error")
-	}
-	return &herr
+	return &lm, nil
 }
 
 //go:generate httprequest-generate-client $IDM_SERVER_REPO/internal/v1 apiHandler client
