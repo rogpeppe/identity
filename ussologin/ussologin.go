@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 
 	"github.com/juju/httprequest"
 	"github.com/juju/usso"
@@ -32,9 +31,12 @@ var (
 	otpKey  = "Two-factor auth (Enter for none)"
 )
 
-// Login completes the login information using the provided filler
-// and attempts to obtain a USSO token using this information.
-func Login(filler form.Filler) (*usso.SSOData, error) {
+// GetToken uses filler to interact with the user and uses the provided
+// information to obtain an OAuth token from Ubuntu SSO. The returned
+// token can subsequently be used with LoginWithToken to perform a login.
+// The tokenName argument is used as the name of the generated token in
+// Ubuntu SSO.
+func GetToken(filler form.Filler, tokenName string) (*usso.SSOData, error) {
 	login, err := filler.Fill(loginForm)
 	if err != nil {
 		return nil, errgo.Notef(err, "cannot read login parameters")
@@ -43,14 +45,16 @@ func Login(filler form.Filler) (*usso.SSOData, error) {
 		login[userKey].(string),
 		login[passKey].(string),
 		login[otpKey].(string),
-		"charm",
+		tokenName,
 	)
+
 	if err != nil {
 		return nil, errgo.Notef(err, "cannot get token")
 	}
 	return tok, nil
 }
 
+// loginForm contains the fields required for login.
 var loginForm = form.Form{
 	Fields: environschema.Fields{
 		userKey: environschema.Attr{
@@ -69,13 +73,16 @@ var loginForm = form.Form{
 		otpKey: environschema.Attr{
 			Description: "Two-factor auth",
 			Type:        environschema.Tstring,
+			Mandatory:   true,
 			Group:       "2",
 		},
 	},
 }
 
-// doSignedRequest performs a GET request to the given URL signed using the provided token.
-func doSignedRequest(client *http.Client, ussoAuthUrl string, tok *usso.SSOData, u *url.URL) error {
+// LoginWithToken completes a login attempt using tok. The ussoAuthURL
+// should have been obtained from the UbuntuSSOOAuth field in a response
+// to a LoginMethods request from the target service.
+func LoginWithToken(client *http.Client, ussoAuthUrl string, tok *usso.SSOData) error {
 	req, err := http.NewRequest("GET", ussoAuthUrl, nil)
 	if err != nil {
 		return errgo.Notef(err, "cannot create request")

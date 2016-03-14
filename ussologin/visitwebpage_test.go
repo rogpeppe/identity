@@ -17,6 +17,7 @@ import (
 	"github.com/juju/usso"
 	gc "gopkg.in/check.v1"
 	"gopkg.in/juju/environschema.v1/form"
+	"gopkg.in/macaroon-bakery.v1/httpbakery"
 
 	"github.com/juju/idmclient/params"
 	"github.com/juju/idmclient/ussologin"
@@ -47,12 +48,12 @@ func (s *visitWebPageSuite) TestCorrectUserPasswordSentToUSSOServer(c *gc.C) {
 			ussologin.OTPKey:  "1234",
 		}}
 	store := &testTokenStore{}
-	f := ussologin.VisitWebPage(filler, &http.Client{}, store)
+	f := ussologin.VisitWebPage("testToken", &http.Client{}, filler, store)
 	u, err := url.Parse(s.server.URL)
 	c.Assert(err, jc.ErrorIsNil)
 	err = f(u)
 	c.Assert(err, jc.ErrorIsNil)
-	ussoStub.CheckCall(c, 0, "GetTokenWithOTP", "foobar", "pass", "1234", "charm")
+	ussoStub.CheckCall(c, 0, "GetTokenWithOTP", "foobar", "pass", "1234", "testToken")
 	store.CheckCallNames(c, "Get", "Put")
 }
 
@@ -66,7 +67,7 @@ func (s *visitWebPageSuite) TestLoginFailsToGetToken(c *gc.C) {
 			ussologin.PassKey: "pass",
 			ussologin.OTPKey:  "1234",
 		}}
-	f := ussologin.VisitWebPage(filler, &http.Client{}, &testTokenStore{})
+	f := ussologin.VisitWebPage("testToken", &http.Client{}, filler, &testTokenStore{})
 	u, err := url.Parse(s.server.URL)
 	c.Assert(err, jc.ErrorIsNil)
 	err = f(u)
@@ -76,7 +77,7 @@ func (s *visitWebPageSuite) TestLoginFailsToGetToken(c *gc.C) {
 func (s *visitWebPageSuite) TestLoginWithExistingToken(c *gc.C) {
 	ussoStub := &ussoServerStub{}
 	s.PatchValue(ussologin.Server, ussoStub)
-	f := ussologin.VisitWebPage(&testFiller{}, &http.Client{}, &testTokenStore{tok: &usso.SSOData{}})
+	f := ussologin.VisitWebPage("testToken", &http.Client{}, &testFiller{}, &testTokenStore{tok: &usso.SSOData{}})
 	u, err := url.Parse(s.server.URL)
 	c.Assert(err, jc.ErrorIsNil)
 	err = f(u)
@@ -96,12 +97,12 @@ func (s *visitWebPageSuite) TestLoginWithExistingMalformedToken(c *gc.C) {
 	tokenPath := fmt.Sprintf("%s/token", c.MkDir())
 	err := ioutil.WriteFile(tokenPath, []byte("foobar"), 0600) // Write a malformed token
 	c.Assert(err, jc.ErrorIsNil)
-	f := ussologin.VisitWebPage(filler, &http.Client{}, ussologin.NewFileTokenStore(tokenPath))
+	f := ussologin.VisitWebPage("testToken", &http.Client{}, filler, ussologin.NewFileTokenStore(tokenPath))
 	u, err := url.Parse(s.server.URL)
 	c.Assert(err, jc.ErrorIsNil)
 	err = f(u)
 	c.Assert(err, jc.ErrorIsNil)
-	ussoStub.CheckCall(c, 0, "GetTokenWithOTP", "foobar", "pass", "1234", "charm")
+	ussoStub.CheckCall(c, 0, "GetTokenWithOTP", "foobar", "pass", "1234", "testToken")
 }
 
 func (s *visitWebPageSuite) TestVisitWebPageWorksIfNilStoreGiven(c *gc.C) {
@@ -113,19 +114,19 @@ func (s *visitWebPageSuite) TestVisitWebPageWorksIfNilStoreGiven(c *gc.C) {
 			ussologin.PassKey: "pass",
 			ussologin.OTPKey:  "1234",
 		}}
-	f := ussologin.VisitWebPage(filler, &http.Client{}, nil)
+	f := ussologin.VisitWebPage("testToken", &http.Client{}, filler, nil)
 	u, err := url.Parse(s.server.URL)
 	c.Assert(err, jc.ErrorIsNil)
 	err = f(u)
 	c.Assert(err, jc.ErrorIsNil)
-	ussoStub.CheckCall(c, 0, "GetTokenWithOTP", "foobar", "pass", "1234", "charm")
+	ussoStub.CheckCall(c, 0, "GetTokenWithOTP", "foobar", "pass", "1234", "testToken")
 }
 
 func (s *visitWebPageSuite) TestFailedToReadLoginParameters(c *gc.C) {
 	ussoStub := &ussoServerStub{}
 	s.PatchValue(ussologin.Server, ussoStub)
 	filler := &errFiller{}
-	f := ussologin.VisitWebPage(filler, &http.Client{}, &testTokenStore{})
+	f := ussologin.VisitWebPage("testToken", &http.Client{}, filler, &testTokenStore{})
 	u, err := url.Parse(s.server.URL)
 	c.Assert(err, jc.ErrorIsNil)
 	err = f(u)
@@ -171,3 +172,5 @@ func (l *loginMethodsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		panic(err)
 	}
 }
+
+var _ httpbakery.Visitor = &ussologin.Visitor{}
