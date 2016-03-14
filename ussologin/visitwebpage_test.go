@@ -42,9 +42,9 @@ func (s *visitWebPageSuite) TestCorrectUserPasswordSentToUSSOServer(c *gc.C) {
 	s.PatchValue(ussologin.Server, ussoStub)
 	filler := &testFiller{
 		map[string]interface{}{
-			"username": "foobar",
-			"password": "pass",
-			"otp":      "1234",
+			ussologin.UserKey: "foobar",
+			ussologin.PassKey: "pass",
+			ussologin.OTPKey:  "1234",
 		}}
 	store := &testTokenStore{}
 	f := ussologin.VisitWebPage(filler, &http.Client{}, store)
@@ -62,9 +62,9 @@ func (s *visitWebPageSuite) TestLoginFailsToGetToken(c *gc.C) {
 	s.PatchValue(ussologin.Server, ussoStub)
 	filler := &testFiller{
 		map[string]interface{}{
-			"username": "foobar",
-			"password": "pass",
-			"otp":      "1234",
+			ussologin.UserKey: "foobar",
+			ussologin.PassKey: "pass",
+			ussologin.OTPKey:  "1234",
 		}}
 	f := ussologin.VisitWebPage(filler, &http.Client{}, &testTokenStore{})
 	u, err := url.Parse(s.server.URL)
@@ -89,9 +89,9 @@ func (s *visitWebPageSuite) TestLoginWithExistingMalformedToken(c *gc.C) {
 	s.PatchValue(ussologin.Server, ussoStub)
 	filler := &testFiller{
 		map[string]interface{}{
-			"username": "foobar",
-			"password": "pass",
-			"otp":      "1234",
+			ussologin.UserKey: "foobar",
+			ussologin.PassKey: "pass",
+			ussologin.OTPKey:  "1234",
 		}}
 	tokenPath := fmt.Sprintf("%s/token", c.MkDir())
 	err := ioutil.WriteFile(tokenPath, []byte("foobar"), 0600) // Write a malformed token
@@ -109,9 +109,9 @@ func (s *visitWebPageSuite) TestVisitWebPageWorksIfNilStoreGiven(c *gc.C) {
 	s.PatchValue(ussologin.Server, ussoStub)
 	filler := &testFiller{
 		map[string]interface{}{
-			"username": "foobar",
-			"password": "pass",
-			"otp":      "1234",
+			ussologin.UserKey: "foobar",
+			ussologin.PassKey: "pass",
+			ussologin.OTPKey:  "1234",
 		}}
 	f := ussologin.VisitWebPage(filler, &http.Client{}, nil)
 	u, err := url.Parse(s.server.URL)
