@@ -26,6 +26,12 @@ type tokenGetter interface {
 // This is defined here to allow it to be stubbed out in tests
 var server tokenGetter = usso.ProductionUbuntuSSOServer
 
+var (
+	userKey = "Username"
+	passKey = "Password"
+	otpKey  = "Two-factor auth (Enter for none)"
+)
+
 // Login completes the login information using the provided filler
 // and attempts to obtain a USSO token using this information.
 func Login(filler form.Filler) (*usso.SSOData, error) {
@@ -34,9 +40,9 @@ func Login(filler form.Filler) (*usso.SSOData, error) {
 		return nil, errgo.Notef(err, "cannot read login parameters")
 	}
 	tok, err := server.GetTokenWithOTP(
-		login["username"].(string),
-		login["password"].(string),
-		login["otp"].(string),
+		login[userKey].(string),
+		login[passKey].(string),
+		login[otpKey].(string),
 		"charm",
 	)
 	if err != nil {
@@ -47,20 +53,20 @@ func Login(filler form.Filler) (*usso.SSOData, error) {
 
 var loginForm = form.Form{
 	Fields: environschema.Fields{
-		"username": environschema.Attr{
+		userKey: environschema.Attr{
 			Description: "Username",
 			Type:        environschema.Tstring,
 			Mandatory:   true,
 			Group:       "1",
 		},
-		"password": environschema.Attr{
+		passKey: environschema.Attr{
 			Description: "Password",
 			Type:        environschema.Tstring,
 			Mandatory:   true,
 			Secret:      true,
 			Group:       "1",
 		},
-		"otp": environschema.Attr{
+		otpKey: environschema.Attr{
 			Description: "Two-factor auth",
 			Type:        environschema.Tstring,
 			Group:       "2",

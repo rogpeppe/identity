@@ -4,5 +4,8 @@
 package ussologin
 
 var (
-	Server = &server
+	Server  = &server
+	UserKey = userKey
+	PassKey = passKey
+	OTPKey  = otpKey
 )
