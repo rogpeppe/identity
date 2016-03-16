@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"path/filepath"
 
 	"github.com/juju/testing"
 	jc "github.com/juju/testing/checkers"
@@ -30,7 +31,7 @@ func (s *loginSuite) TestPutGetToken(c *gc.C) {
 		TokenName:      "tokenname",
 		TokenSecret:    "tokensecret",
 	}
-	path := fmt.Sprintf("%s/tokenFile", c.MkDir())
+	path := filepath.Join(c.MkDir(), "subdir", "tokenFile")
 	store := ussologin.NewFileTokenStore(path)
 	err := store.Put(token)
 	c.Assert(err, jc.ErrorIsNil)

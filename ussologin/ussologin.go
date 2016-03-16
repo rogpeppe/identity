@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/juju/httprequest"
 	"github.com/juju/usso"
@@ -133,12 +135,17 @@ func NewFileTokenStore(path string) *FileTokenStore {
 	return &FileTokenStore{path}
 }
 
-// Put implements TokenStore.Put by
-// writing the token to the FileTokenStore's file.
+// Put implements TokenStore.Put by writing the token to the
+// FileTokenStore's file. If the file doesn't exist it will be created,
+// including any required directories.
 func (f *FileTokenStore) Put(tok *usso.SSOData) error {
 	data, err := json.Marshal(tok)
 	if err != nil {
 		return errgo.Notef(err, "cannot marshal token")
+	}
+	dir := filepath.Dir(f.path)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return errgo.Notef(err, "cannot create directory %q", dir)
 	}
 	if err := ioutil.WriteFile(f.path, data, 0600); err != nil {
 		return errgo.Notef(err, "cannot write file")
