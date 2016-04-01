@@ -37,7 +37,8 @@ var (
 // information to obtain an OAuth token from Ubuntu SSO. The returned
 // token can subsequently be used with LoginWithToken to perform a login.
 // The tokenName argument is used as the name of the generated token in
-// Ubuntu SSO.
+// Ubuntu SSO. If Ubuntu SSO returned an error when trying to retrieve
+// the token the error will have a cause of type *usso.Error.
 func GetToken(filler form.Filler, tokenName string) (*usso.SSOData, error) {
 	login, err := filler.Fill(loginForm)
 	if err != nil {
@@ -51,7 +52,7 @@ func GetToken(filler form.Filler, tokenName string) (*usso.SSOData, error) {
 	)
 
 	if err != nil {
-		return nil, errgo.Notef(err, "cannot get token")
+		return nil, errgo.NoteMask(err, "cannot get token", isUSSOError)
 	}
 	return tok, nil
 }
@@ -165,4 +166,10 @@ func (f *FileTokenStore) Get() (*usso.SSOData, error) {
 		return nil, errgo.Notef(err, "cannot unmarshal token")
 	}
 	return &tok, nil
+}
+
+// isUSSOError determines if err represents an error of type *usso.Error.
+func isUSSOError(err error) bool {
+	_, ok := err.(*usso.Error)
+	return ok
 }

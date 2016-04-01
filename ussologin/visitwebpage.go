@@ -53,7 +53,11 @@ func NewVisitor(tokenName string, filler form.Filler, store TokenStore) *Visitor
 	}
 }
 
-// VisitWebPage implements httpbakery.Visitor.VisitWebPage.
+// VisitWebPage implements httpbakery.Visitor.VisitWebPage by attempting
+// to obtain an Ubuntu SSO OAuth token and use that to sign a request to
+// the identity manager. If Ubuntu SSO returns an error when attempting
+// to obtain the token the error returned will have a cause of type
+// *usso.Error.
 func (v *Visitor) VisitWebPage(client *httpbakery.Client, methodURLs map[string]*url.URL) error {
 	if methodURLs["usso_oauth"] == nil {
 		return httpbakery.ErrMethodNotSupported
@@ -68,7 +72,7 @@ func (v *Visitor) VisitWebPage(client *httpbakery.Client, methodURLs map[string]
 	if tok == nil {
 		tok, err = GetToken(v.filler, v.tokenName)
 		if err != nil {
-			return errgo.Mask(err)
+			return errgo.Mask(err, isUSSOError)
 		}
 		if v.store != nil {
 			// Ignore any error from the store, we can still
