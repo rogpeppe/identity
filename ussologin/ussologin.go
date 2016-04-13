@@ -28,7 +28,7 @@ type tokenGetter interface {
 var server tokenGetter = usso.ProductionUbuntuSSOServer
 
 var (
-	userKey = "Username"
+	userKey = "E-Mail"
 	passKey = "Password"
 	otpKey  = "Two-factor auth (Enter for none)"
 )
@@ -59,6 +59,7 @@ func GetToken(filler form.Filler, tokenName string) (*usso.SSOData, error) {
 
 // loginForm contains the fields required for login.
 var loginForm = form.Form{
+	Title: "Login to Ubuntu SSO",
 	Fields: environschema.Fields{
 		userKey: environschema.Attr{
 			Description: "Username",
