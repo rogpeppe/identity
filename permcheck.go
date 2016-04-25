@@ -6,16 +6,12 @@ package idmclient
 import (
 	"time"
 
-	"github.com/juju/utils/cache"
 	"gopkg.in/errgo.v1"
-
-	"github.com/juju/idmclient/params"
 )
 
 // PermChecker provides a way to query ACLs using the identity client.
 type PermChecker struct {
-	cache  *cache.Cache
-	client *Client
+	cache *GroupCache
 }
 
 // NewPermChecker returns a permission checker
@@ -24,8 +20,15 @@ type PermChecker struct {
 // It will cache results for at most cacheTime.
 func NewPermChecker(c *Client, cacheTime time.Duration) *PermChecker {
 	return &PermChecker{
-		cache:  cache.New(cacheTime),
-		client: c,
+		cache: NewGroupCache(c, cacheTime),
+	}
+}
+
+// NewPermCheckerWithCache returns a new PermChecker using
+// the given cache for its group queries.
+func NewPermCheckerWithCache(cache *GroupCache) *PermChecker {
+	return &PermChecker{
+		cache: cache,
 	}
 }
 
@@ -41,23 +44,10 @@ func (c *PermChecker) Allow(username string, acl []string) (bool, error) {
 			return true, nil
 		}
 	}
-	groups0, err := c.cache.Get(username, func() (interface{}, error) {
-		groups, err := c.client.UserGroups(&params.UserGroupsRequest{
-			Username: params.Username(username),
-		})
-		if err != nil && errgo.Cause(err) != params.ErrNotFound {
-			return nil, errgo.Mask(err)
-		}
-		groupMap := make(map[string]bool)
-		for _, g := range groups {
-			groupMap[g] = true
-		}
-		return groupMap, nil
-	})
+	groups, err := c.cache.groupMap(username)
 	if err != nil {
-		return false, errgo.Notef(err, "cannot fetch groups")
+		return false, errgo.Mask(err)
 	}
-	groups := groups0.(map[string]bool)
 	for _, a := range acl {
 		if groups[a] {
 			return true, nil
@@ -68,10 +58,10 @@ func (c *PermChecker) Allow(username string, acl []string) (bool, error) {
 
 // CacheEvict evicts username from the cache.
 func (c *PermChecker) CacheEvict(username string) {
-	c.cache.Evict(username)
+	c.cache.CacheEvict(username)
 }
 
 // CacheEvictAll evicts everything from the cache.
 func (c *PermChecker) CacheEvictAll() {
-	c.cache.EvictAll()
+	c.cache.CacheEvictAll()
 }
