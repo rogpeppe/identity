@@ -102,6 +102,7 @@ type User struct {
 	IDPGroups  []string            `json:"idpgroups"`
 	Owner      Username            `json:"owner,omitempty"`
 	PublicKeys []*bakery.PublicKey `json:"public_keys"`
+	SSHKeys    []string            `json:"ssh_keys"`
 }
 
 // SetUserRequest is request to set the details of a user.
@@ -136,6 +137,35 @@ type UserTokenRequest struct {
 type VerifyTokenRequest struct {
 	httprequest.Route `httprequest:"POST /v1/verify"`
 	Macaroons         macaroon.Slice `httprequest:",body"`
+}
+
+// UserSSHKeysRequest is a request for the list of ssh keys associated
+// with the specified user.
+type UserSSHKeysRequest struct {
+	httprequest.Route `httprequest:"GET /v1/u/:username/ssh-keys"`
+	Username          Username `httprequest:"username,path"`
+}
+
+// UserSSHKeysResponse holds a response to the GET /v1/u/:username/ssh-keys
+// containing list of ssh keys associated with the user.
+type UserSSHKeysResponse struct {
+	SSHKeys []string `json:"ssh_keys"`
+}
+
+// AddSSHKeyRequest is a request to add an ssh key to the list of ssh keys
+// associated with the current user.
+type AddSSHKeyRequest struct {
+	httprequest.Route `httprequest:"PUT /v1/u/:username/ssh-keys"`
+	Username          Username `httprequest:"username,path"`
+	SSHKey            string   `httprequest:",body"`
+}
+
+// RemoveSSHKeyRequest is a request to remove an ssh key to the list of ssh keys
+// associated with the current user.
+type RemoveSSHKeyRequest struct {
+	httprequest.Route `httprequest:"DELETE /v1/u/:username/ssh-keys"`
+	Username          Username `httprequest:"username,path"`
+	SSHKey            string   `httprequest:",body"`
 }
 
 // UserExtraInfoRequest is a request for the arbitrary extra information
