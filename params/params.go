@@ -139,33 +139,44 @@ type VerifyTokenRequest struct {
 	Macaroons         macaroon.Slice `httprequest:",body"`
 }
 
-// UserSSHKeysRequest is a request for the list of ssh keys associated
+// SSHKeysRequest is a request for the list of ssh keys associated
 // with the specified user.
-type UserSSHKeysRequest struct {
+type SSHKeysRequest struct {
 	httprequest.Route `httprequest:"GET /v1/u/:username/ssh-keys"`
 	Username          Username `httprequest:"username,path"`
 }
 
 // UserSSHKeysResponse holds a response to the GET /v1/u/:username/ssh-keys
 // containing list of ssh keys associated with the user.
-type UserSSHKeysResponse struct {
+type SSHKeysResponse struct {
 	SSHKeys []string `json:"ssh_keys"`
 }
 
-// AddSSHKeyRequest is a request to add an ssh key to the list of ssh keys
-// associated with the current user.
-type AddSSHKeyRequest struct {
+// PutSSHKeysRequest is a request to set ssh keys to the list of ssh keys
+// associated with the user.
+type PutSSHKeysRequest struct {
 	httprequest.Route `httprequest:"PUT /v1/u/:username/ssh-keys"`
-	Username          Username `httprequest:"username,path"`
-	SSHKey            string   `httprequest:",body"`
+	Username          Username       `httprequest:"username,path"`
+	Body              PutSSHKeysBody `httprequest:",body"`
 }
 
-// RemoveSSHKeyRequest is a request to remove an ssh key to the list of ssh keys
-// associated with the current user.
-type RemoveSSHKeyRequest struct {
+// PutSSHKeysBody holds the body of a PutSSHKeysRequest.
+type PutSSHKeysBody struct {
+	SSHKeys []string `json:"ssh-keys"`
+	Add     bool     `json:"add,omitempty"`
+}
+
+// DeleteSSHKeysRequest is a request to remove ssh keys from the list of ssh keys
+// associated with the user.
+type DeleteSSHKeysRequest struct {
 	httprequest.Route `httprequest:"DELETE /v1/u/:username/ssh-keys"`
-	Username          Username `httprequest:"username,path"`
-	SSHKey            string   `httprequest:",body"`
+	Username          Username          `httprequest:"username,path"`
+	Body              DeleteSSHKeysBody `httprequest:",body"`
+}
+
+// DeleteSSHKeysBody holds the body of a DeleteSSHKeysRequest.
+type DeleteSSHKeysBody struct {
+	SSHKeys []string `json:"ssh-keys"`
 }
 
 // UserExtraInfoRequest is a request for the arbitrary extra information
