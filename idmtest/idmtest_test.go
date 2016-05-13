@@ -94,3 +94,20 @@ func (*suite) TestGroups(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	c.Assert(groups, gc.HasLen, 0)
 }
+
+func (s *suite) TestAddUserWithExistingGroups(c *gc.C) {
+	srv := idmtest.NewServer()
+	srv.AddUser("alice", "anteaters")
+	srv.AddUser("alice")
+	srv.AddUser("alice", "goof", "anteaters")
+
+	client := idmclient.New(idmclient.NewParams{
+		BaseURL: srv.URL.String(),
+		Client:  srv.Client("alice"),
+	})
+	groups, err := client.UserGroups(&idmparams.UserGroupsRequest{
+		Username: "alice",
+	})
+	c.Assert(err, gc.IsNil)
+	c.Assert(groups, jc.DeepEquals, []string{"anteaters", "goof"})
+}

@@ -180,16 +180,34 @@ func (srv *Server) SetDefaultUser(name string) {
 }
 
 // AddUser adds a new user that's in the given set of groups.
+// If the user already exists, the given groups are
+// added to that user's groups.
 func (srv *Server) AddUser(name string, groups ...string) {
-	key, err := bakery.GenerateKey()
-	if err != nil {
-		panic(err)
-	}
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
-	srv.users[name] = &user{
-		groups: groups,
-		key:    key,
+	u := srv.users[name]
+	if u == nil {
+		key, err := bakery.GenerateKey()
+		if err != nil {
+			panic(err)
+		}
+		srv.users[name] = &user{
+			groups: groups,
+			key:    key,
+		}
+		return
+	}
+	for _, g := range groups {
+		found := false
+		for _, ug := range u.groups {
+			if ug == g {
+				found = true
+				break
+			}
+		}
+		if !found {
+			u.groups = append(u.groups, g)
+		}
 	}
 }
 
