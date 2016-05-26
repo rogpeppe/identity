@@ -8,8 +8,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/juju/httprequest"
-	"github.com/juju/names"
 	"gopkg.in/errgo.v1"
+	"gopkg.in/juju/names.v2"
 	"gopkg.in/macaroon-bakery.v1/bakery"
 	"gopkg.in/macaroon.v1"
 )
