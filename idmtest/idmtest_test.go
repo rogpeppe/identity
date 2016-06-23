@@ -6,10 +6,10 @@ package idmtest_test
 import (
 	jc "github.com/juju/testing/checkers"
 	gc "gopkg.in/check.v1"
-	"gopkg.in/macaroon-bakery.v1/bakery"
-	"gopkg.in/macaroon-bakery.v1/bakery/checkers"
-	"gopkg.in/macaroon-bakery.v1/httpbakery"
-	"gopkg.in/macaroon.v1"
+	"gopkg.in/macaroon-bakery.v2-unstable/bakery"
+	"gopkg.in/macaroon-bakery.v2-unstable/bakery/checkers"
+	"gopkg.in/macaroon-bakery.v2-unstable/httpbakery"
+	"gopkg.in/macaroon.v2-unstable"
 
 	"github.com/juju/idmclient"
 	"github.com/juju/idmclient/idmtest"
@@ -28,7 +28,7 @@ func (*suite) TestDischarge(c *gc.C) {
 		Locator: srv,
 	})
 	c.Assert(err, gc.IsNil)
-	m, err := bsvc.NewMacaroon("", nil, []checkers.Caveat{{
+	m, err := bsvc.NewMacaroon([]checkers.Caveat{{
 		Location:  srv.URL.String() + "/v1/discharger",
 		Condition: "is-authenticated-user",
 	}})
@@ -54,7 +54,7 @@ func (*suite) TestDischargeDefaultUser(c *gc.C) {
 		Locator: srv,
 	})
 	c.Assert(err, gc.IsNil)
-	m, err := bsvc.NewMacaroon("", nil, []checkers.Caveat{{
+	m, err := bsvc.NewMacaroon([]checkers.Caveat{{
 		Location:  srv.URL.String() + "/v1/discharger",
 		Condition: "is-authenticated-user",
 	}})

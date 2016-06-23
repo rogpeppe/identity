@@ -10,8 +10,8 @@ import (
 	"github.com/juju/httprequest"
 	"gopkg.in/errgo.v1"
 	"gopkg.in/juju/names.v2"
-	"gopkg.in/macaroon-bakery.v1/bakery"
-	"gopkg.in/macaroon.v1"
+	"gopkg.in/macaroon-bakery.v2-unstable/bakery"
+	"gopkg.in/macaroon.v2-unstable"
 )
 
 // Username represents the name of a user.
