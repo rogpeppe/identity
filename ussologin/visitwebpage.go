@@ -10,7 +10,7 @@ import (
 	"github.com/juju/usso"
 	"gopkg.in/errgo.v1"
 	"gopkg.in/juju/environschema.v1/form"
-	"gopkg.in/macaroon-bakery.v1/httpbakery"
+	"gopkg.in/macaroon-bakery.v2-unstable/httpbakery"
 )
 
 // VisitWebPage returns a function which will allow authentication via USSO

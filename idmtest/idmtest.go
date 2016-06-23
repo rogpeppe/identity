@@ -15,10 +15,10 @@ import (
 	"github.com/juju/httprequest"
 	"github.com/julienschmidt/httprouter"
 	"gopkg.in/errgo.v1"
-	"gopkg.in/macaroon-bakery.v1/bakery"
-	"gopkg.in/macaroon-bakery.v1/bakery/checkers"
-	"gopkg.in/macaroon-bakery.v1/httpbakery"
-	"gopkg.in/macaroon-bakery.v1/httpbakery/agent"
+	"gopkg.in/macaroon-bakery.v2-unstable/bakery"
+	"gopkg.in/macaroon-bakery.v2-unstable/bakery/checkers"
+	"gopkg.in/macaroon-bakery.v2-unstable/httpbakery"
+	"gopkg.in/macaroon-bakery.v2-unstable/httpbakery/agent"
 
 	"github.com/juju/idmclient/params"
 )
@@ -217,9 +217,9 @@ func (srv *Server) user(name string) *user {
 	return srv.users[name]
 }
 
-func (srv *Server) check(req *http.Request, cavId, cav string) ([]checkers.Caveat, error) {
-	if cav != "is-authenticated-user" {
-		return nil, errgo.Newf("unknown third party caveat %q", cav)
+func (srv *Server) check(req *http.Request, ci *bakery.ThirdPartyCaveatInfo) ([]checkers.Caveat, error) {
+	if ci.Condition != "is-authenticated-user" {
+		return nil, errgo.Newf("unknown third party caveat %q", ci.Condition)
 	}
 
 	// First check if we have a login cookie so that we can avoid
@@ -250,7 +250,7 @@ func (srv *Server) check(req *http.Request, cavId, cav string) ([]checkers.Cavea
 		Code: httpbakery.ErrInteractionRequired,
 		Info: &httpbakery.ErrorInfo{
 			VisitURL: fmt.Sprintf("%s/v1/login/%d", srv.URL, waitId),
-			WaitURL:  fmt.Sprintf("%s/v1/wait/%d?username=%s&caveat-id=%s&pubkey=%v", srv.URL, waitId, username, url.QueryEscape(cavId), url.QueryEscape(key.String())),
+			WaitURL:  fmt.Sprintf("%s/v1/wait/%d?username=%s&caveat-id=%s&pubkey=%v", srv.URL, waitId, username, url.QueryEscape(string(ci.CaveatId)), url.QueryEscape(key.String())),
 		},
 	}
 }
@@ -283,7 +283,7 @@ func (h *handler) checkRequest(req *http.Request) error {
 	if !ok {
 		return err
 	}
-	m, err := h.srv.bakery.NewMacaroon("", nil, []checkers.Caveat{{
+	m, err := h.srv.bakery.NewMacaroon([]checkers.Caveat{{
 		Location:  h.srv.URL.String() + "/v1/discharger",
 		Condition: "is-authenticated-user",
 	}})
@@ -339,13 +339,15 @@ func (h *handler) Wait(req *waitRequest) (*httpbakery.WaitResponse, error) {
 	if *req.PublicKey != u.key.Public {
 		return nil, errgo.Newf("public key mismatch")
 	}
-	checker := func(cavId, cav string) ([]checkers.Caveat, error) {
+	checker := func(*bakery.ThirdPartyCaveatInfo) ([]checkers.Caveat, error) {
 		return []checkers.Caveat{
 			checkers.DeclaredCaveat("username", req.Username),
 			bakery.LocalThirdPartyCaveat(&u.key.Public),
 		}, nil
 	}
-	m, err := h.srv.bakery.Discharge(bakery.ThirdPartyCheckerFunc(checker), req.CaveatID)
+	// Note that this will send non-utf8 binary data as a URL encoded
+	// value. This is legal but unusual.
+	m, err := h.srv.bakery.Discharge(bakery.ThirdPartyCheckerFunc(checker), []byte(req.CaveatID))
 	if err != nil {
 		return nil, errgo.NoteMask(err, "cannot discharge", errgo.Any)
 	}

@@ -17,7 +17,7 @@ import (
 	"github.com/juju/usso"
 	gc "gopkg.in/check.v1"
 	"gopkg.in/juju/environschema.v1/form"
-	"gopkg.in/macaroon-bakery.v1/httpbakery"
+	"gopkg.in/macaroon-bakery.v2-unstable/httpbakery"
 
 	"github.com/juju/idmclient/params"
 	"github.com/juju/idmclient/ussologin"
