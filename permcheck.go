@@ -9,6 +9,8 @@ import (
 	"gopkg.in/errgo.v1"
 )
 
+// TODO unexport this type - it's best exposed as part of the client API only.
+
 // PermChecker provides a way to query ACLs using the identity client.
 type PermChecker struct {
 	cache *GroupCache

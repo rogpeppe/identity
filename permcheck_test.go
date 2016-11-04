@@ -22,10 +22,11 @@ func (s *permCheckerSuite) TestPermChecker(c *gc.C) {
 	srv := idmtest.NewServer()
 	srv.AddUser("alice", "somegroup")
 
-	client := idmclient.New(idmclient.NewParams{
+	client, err := idmclient.New(idmclient.NewParams{
 		BaseURL: srv.URL.String(),
 		Client:  srv.Client("alice"),
 	})
+	c.Assert(err, gc.IsNil)
 
 	pc := idmclient.NewPermChecker(client, time.Hour)
 
@@ -68,10 +69,11 @@ func (s *permCheckerSuite) TestGroupCache(c *gc.C) {
 	srv := idmtest.NewServer()
 	srv.AddUser("alice", "somegroup", "othergroup")
 
-	client := idmclient.New(idmclient.NewParams{
+	client, err := idmclient.New(idmclient.NewParams{
 		BaseURL: srv.URL.String(),
 		Client:  srv.Client("alice"),
 	})
+	c.Assert(err, gc.IsNil)
 
 	cache := idmclient.NewGroupCache(client, time.Hour)
 

@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	"github.com/juju/httprequest"
+	"github.com/juju/idmclient"
 	"github.com/julienschmidt/httprouter"
 	"gopkg.in/errgo.v1"
 	"gopkg.in/macaroon-bakery.v2-unstable/bakery"
@@ -153,6 +154,20 @@ func (srv *Server) UserPublicKey(username string) *bakery.KeyPair {
 	return u.key
 }
 
+// IDMClient returns an identity manager client that takes
+// to the given server as the given user name.
+func (srv *Server) IDMClient(username string) *idmclient.Client {
+	c, err := idmclient.New(idmclient.NewParams{
+		BaseURL:       srv.URL.String(),
+		AgentUsername: username,
+		Client:        srv.Client(username),
+	})
+	if err != nil {
+		panic(err)
+	}
+	return c
+}
+
 // Client returns a bakery client that will discharge as the given user.
 // If the user does not exist, it is added with no groups.
 func (srv *Server) Client(username string) *httpbakery.Client {
@@ -163,6 +178,8 @@ func (srv *Server) Client(username string) *httpbakery.Client {
 		u = srv.user(username)
 	}
 	c.Key = u.key
+	// Note that this duplicates the SetUpAuth that idmclient.New will do
+	// but that shouldn't matter as SetUpAuth is idempotent.
 	agent.SetUpAuth(c, srv.URL, username)
 	return c
 }
@@ -209,6 +226,22 @@ func (srv *Server) AddUser(name string, groups ...string) {
 			u.groups = append(u.groups, g)
 		}
 	}
+}
+
+// RemoveUsers removes all added users and resets the
+// default user to nothing.
+func (srv *Server) RemoveUsers() {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	srv.users = make(map[string]*user)
+	srv.defaultUser = ""
+}
+
+// RemoveUser removes the given user.
+func (srv *Server) RemoveUser(user string) {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	delete(srv.users, user)
 }
 
 func (srv *Server) user(name string) *user {

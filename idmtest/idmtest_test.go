@@ -11,7 +11,6 @@ import (
 	"gopkg.in/macaroon-bakery.v2-unstable/httpbakery"
 	"gopkg.in/macaroon.v2-unstable"
 
-	"github.com/juju/idmclient"
 	"github.com/juju/idmclient/idmtest"
 	idmparams "github.com/juju/idmclient/params"
 )
@@ -78,10 +77,7 @@ func (*suite) TestGroups(c *gc.C) {
 	srv.AddUser("bob", "beatles", "bobbins")
 	srv.AddUser("alice")
 
-	client := idmclient.New(idmclient.NewParams{
-		BaseURL: srv.URL.String(),
-		Client:  srv.Client("bob"),
-	})
+	client := srv.IDMClient("bob")
 	groups, err := client.UserGroups(&idmparams.UserGroupsRequest{
 		Username: "bob",
 	})
@@ -101,10 +97,7 @@ func (s *suite) TestAddUserWithExistingGroups(c *gc.C) {
 	srv.AddUser("alice")
 	srv.AddUser("alice", "goof", "anteaters")
 
-	client := idmclient.New(idmclient.NewParams{
-		BaseURL: srv.URL.String(),
-		Client:  srv.Client("alice"),
-	})
+	client := srv.IDMClient("alice")
 	groups, err := client.UserGroups(&idmparams.UserGroupsRequest{
 		Username: "alice",
 	})

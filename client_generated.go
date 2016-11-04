@@ -5,7 +5,7 @@ package idmclient
 
 import (
 	"github.com/juju/httprequest"
-	"gopkg.in/macaroon.v1"
+	"gopkg.in/macaroon.v2-unstable"
 
 	"github.com/juju/idmclient/params"
 )
