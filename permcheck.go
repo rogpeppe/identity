@@ -34,17 +34,28 @@ func NewPermCheckerWithCache(cache *GroupCache) *PermChecker {
 	}
 }
 
+// trivialAllow reports whether the username should be allowed
+// access to the given ACL based on a superficial inspection
+// of the ACL. If there is a definite answer, it will return
+// a true isTrivial; otherwise it will return (false, false).
+func trivialAllow(username string, acl []string) (allow, isTrivial bool) {
+	if len(acl) == 0 {
+		return false, true
+	}
+	for _, name := range acl {
+		if name == "everyone" || name == username {
+			return true, true
+		}
+	}
+	return false, false
+}
+
 // Allow reports whether the given ACL admits the user with the given
 // name. If the user does not exist and the ACL does not allow username
 // or everyone, it will return (false, nil).
 func (c *PermChecker) Allow(username string, acl []string) (bool, error) {
-	if len(acl) == 0 {
-		return false, nil
-	}
-	for _, name := range acl {
-		if name == "everyone" || name == username {
-			return true, nil
-		}
+	if ok, isTrivial := trivialAllow(username, acl); isTrivial {
+		return ok, nil
 	}
 	groups, err := c.cache.groupMap(username)
 	if err != nil {

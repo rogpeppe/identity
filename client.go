@@ -130,6 +130,8 @@ type User struct {
 	username string
 }
 
+var _ ACLUser = (*User)(nil)
+
 // Username returns the user name of the user.
 func (u *User) Username() (string, error) {
 	return u.username, nil
@@ -155,12 +157,8 @@ func (u *User) Allow(acl []string) (bool, error) {
 		return u.client.permChecker.Allow(u.username, acl)
 	}
 	// No groups - just implement the trivial cases.
-	for _, name := range acl {
-		if name == "everyone" || name == u.username {
-			return true, nil
-		}
-	}
-	return false, nil
+	ok, _ := trivialAllow(u.username, acl)
+	return ok, nil
 }
 
 // Id implements Identity.Id. Currently it just returns the user
