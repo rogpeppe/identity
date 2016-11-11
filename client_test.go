@@ -51,13 +51,13 @@ func (*clientSuite) TestIdentityClientWithDomainStripNoDomains(c *gc.C) {
 // create a third party caveat that when discharged provides
 // an Identity with the given id, user name and groups.
 func testIdentityClient(c *gc.C, idmClient idmclient.IdentityClient, bclient *httpbakery.Client, expectId, expectUser string, expectGroups []string) {
-	kr := httpbakery.NewPublicKeyRing(nil, nil)
+	kr := httpbakery.NewThirdPartyLocator(nil, nil)
 	kr.AllowInsecure()
 	bsvc, err := bakery.NewService(bakery.NewServiceParams{
 		Locator: kr,
 	})
 	c.Assert(err, gc.IsNil)
-	m, err := bsvc.NewMacaroon(idmClient.IdentityCaveats())
+	m, err := bsvc.NewMacaroon(bakery.LatestVersion, idmClient.IdentityCaveats())
 	c.Assert(err, gc.IsNil)
 
 	ms, err := bclient.DischargeAll(m)
@@ -65,7 +65,7 @@ func testIdentityClient(c *gc.C, idmClient idmclient.IdentityClient, bclient *ht
 
 	// Make sure that the macaroon discharged correctly and that it
 	// has the right declared caveats.
-	attrs, err := bsvc.CheckAny([]macaroon.Slice{ms}, nil, checkers.New())
+	attrs, _, err := bsvc.CheckAny([]macaroon.Slice{ms}, nil, checkers.New())
 	c.Assert(err, gc.IsNil)
 
 	ident, err := idmClient.DeclaredIdentity(attrs)

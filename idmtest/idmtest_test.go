@@ -27,8 +27,8 @@ func (*suite) TestDischarge(c *gc.C) {
 		Locator: srv,
 	})
 	c.Assert(err, gc.IsNil)
-	m, err := bsvc.NewMacaroon([]checkers.Caveat{{
-		Location:  srv.URL.String() + "/v1/discharger",
+	m, err := bsvc.NewMacaroon(bakery.LatestVersion, []checkers.Caveat{{
+		Location:  srv.URL.String(),
 		Condition: "is-authenticated-user",
 	}})
 	c.Assert(err, gc.IsNil)
@@ -38,7 +38,7 @@ func (*suite) TestDischarge(c *gc.C) {
 
 	// Make sure that the macaroon discharged correctly and that it
 	// has the right declared caveats.
-	attrs, err := bsvc.CheckAny([]macaroon.Slice{ms}, nil, checkers.New())
+	attrs, _, err := bsvc.CheckAny([]macaroon.Slice{ms}, nil, checkers.New())
 	c.Assert(err, gc.IsNil)
 	c.Assert(attrs, jc.DeepEquals, map[string]string{
 		"username": "bob",
@@ -53,8 +53,8 @@ func (*suite) TestDischargeDefaultUser(c *gc.C) {
 		Locator: srv,
 	})
 	c.Assert(err, gc.IsNil)
-	m, err := bsvc.NewMacaroon([]checkers.Caveat{{
-		Location:  srv.URL.String() + "/v1/discharger",
+	m, err := bsvc.NewMacaroon(bakery.LatestVersion, []checkers.Caveat{{
+		Location:  srv.URL.String(),
 		Condition: "is-authenticated-user",
 	}})
 	c.Assert(err, gc.IsNil)
@@ -65,7 +65,7 @@ func (*suite) TestDischargeDefaultUser(c *gc.C) {
 
 	// Make sure that the macaroon discharged correctly and that it
 	// has the right declared caveats.
-	attrs, err := bsvc.CheckAny([]macaroon.Slice{ms}, nil, checkers.New())
+	attrs, _, err := bsvc.CheckAny([]macaroon.Slice{ms}, nil, checkers.New())
 	c.Assert(err, gc.IsNil)
 	c.Assert(attrs, jc.DeepEquals, map[string]string{
 		"username": "bob",
