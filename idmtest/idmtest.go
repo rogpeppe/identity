@@ -75,12 +75,11 @@ func NewServer() *Server {
 	}) {
 		router.Handle(route.Method, route.Path, route.Handle)
 	}
-	mux := http.NewServeMux()
-	httpbakery.AddDischargeHandler(mux, "/", srv.bakery, srv.check)
-	router.Handler("POST", "/v1/discharger/*rest", http.StripPrefix("/v1/discharger", mux))
-	router.Handler("GET", "/v1/discharger/*rest", http.StripPrefix("/v1/discharger", mux))
-	router.Handler("POST", "/discharge", mux)
-	router.Handler("GET", "/publickey", mux)
+	d := httpbakery.NewDischargerFromService(srv.bakery, httpbakery.ThirdPartyCheckerFunc(srv.check))
+	for _, h := range d.Handlers() {
+		router.Handle(h.Method, h.Path, h.Handle)
+		router.Handle(h.Method, "/v1/discharger"+h.Path, h.Handle)
+	}
 
 	srv.srv = httptest.NewServer(router)
 	srv.URL, err = url.Parse(srv.srv.URL)
@@ -142,6 +141,14 @@ func (srv *Server) Close() {
 // by returning the server's public key for all locations.
 func (srv *Server) PublicKeyForLocation(loc string) (*bakery.PublicKey, error) {
 	return srv.PublicKey, nil
+}
+
+// ThirdPartyInfo implements bakery.ThirdPartyLocator.ThirdPartyInfo.
+func (srv *Server) ThirdPartyInfo(loc string) (bakery.ThirdPartyInfo, error) {
+	return bakery.ThirdPartyInfo{
+		PublicKey: *srv.PublicKey,
+		Version:   bakery.LatestVersion,
+	}, nil
 }
 
 // UserPublicKey returns the key for the given user.
@@ -316,8 +323,8 @@ func (h *handler) checkRequest(req *http.Request) error {
 	if !ok {
 		return err
 	}
-	m, err := h.srv.bakery.NewMacaroon([]checkers.Caveat{{
-		Location:  h.srv.URL.String() + "/v1/discharger",
+	m, err := h.srv.bakery.NewMacaroon(bakery.LatestVersion, []checkers.Caveat{{
+		Location:  h.srv.URL.String(),
 		Condition: "is-authenticated-user",
 	}})
 	if err != nil {
@@ -360,7 +367,7 @@ type waitRequest struct {
 	PublicKey         *bakery.PublicKey `httprequest:"pubkey,form"`
 }
 
-func (h *handler) Wait(req *waitRequest) (*httpbakery.WaitResponse, error) {
+func (h *handler) Wait(p httprequest.Params, req *waitRequest) (*httpbakery.WaitResponse, error) {
 	h.srv.mu.Lock()
 	c := h.srv.waits[req.WaitID]
 	h.srv.mu.Unlock()
@@ -375,7 +382,7 @@ func (h *handler) Wait(req *waitRequest) (*httpbakery.WaitResponse, error) {
 	checker := func(*bakery.ThirdPartyCaveatInfo) ([]checkers.Caveat, error) {
 		return []checkers.Caveat{
 			checkers.DeclaredCaveat("username", req.Username),
-			bakery.LocalThirdPartyCaveat(&u.key.Public),
+			bakery.LocalThirdPartyCaveat(&u.key.Public, httpbakery.RequestVersion(p.Request)),
 		}, nil
 	}
 	// Note that this will send non-utf8 binary data as a URL encoded
