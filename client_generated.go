@@ -29,9 +29,9 @@ func (c *client) GetSSHKeys(p *params.SSHKeysRequest) (params.SSHKeysResponse, e
 }
 
 // ModifyUserGroups serves the POST /u/$username/groups endpoint, and
-// updates the list of groups associated with the user. Groups are added
-// to the user before they are removed, so if there is a group name in
-// both lists then it will ultimately be removed from the user.
+// updates the list of groups associated with the user. Groups can be
+// either added or removed in a single query. It is an error to try and
+// both add and remove groups at the same time.
 func (c *client) ModifyUserGroups(p *params.ModifyUserGroupsRequest) error {
 	return c.Client.Call(p, nil)
 }

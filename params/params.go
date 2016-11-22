@@ -82,8 +82,9 @@ type LoginMethods struct {
 
 // QueryUsersRequest is a request to query the users in the system.
 type QueryUsersRequest struct {
-	httprequest.Route `httprequest:"GET /v1/u" bson:",omitempty"`
-	ExternalID        string `httprequest:"external_id,form" bson:"external_id,omitempty"`
+	httprequest.Route `httprequest:"GET /v1/u"`
+	ExternalID        string `httprequest:"external_id,form"`
+	Email             string `httprequest:"email,form"`
 }
 
 // UserRequest is a request for the user details of the named user.
