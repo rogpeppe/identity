@@ -14,6 +14,35 @@ type client struct {
 	Client httprequest.Client
 }
 
+// DeleteSSHKeys serves the /u/$username/sshkeys delete endpoint, and remove
+// ssh keys from the list of ssh keys associated with the user.
+func (c *client) DeleteSSHKeys(p *params.DeleteSSHKeysRequest) error {
+	return c.Client.Call(p, nil)
+}
+
+// GetSSHKeys serves the /u/$username/sshkeys endpoint, and returns
+// the list of ssh keys associated with the user.
+func (c *client) GetSSHKeys(p *params.SSHKeysRequest) (params.SSHKeysResponse, error) {
+	var r params.SSHKeysResponse
+	err := c.Client.Call(p, &r)
+	return r, err
+}
+
+// ModifyUserGroups serves the POST /u/$username/groups endpoint, and
+// updates the list of groups associated with the user. Groups are added
+// to the user before they are removed, so if there is a group name in
+// both lists then it will ultimately be removed from the user.
+func (c *client) ModifyUserGroups(p *params.ModifyUserGroupsRequest) error {
+	return c.Client.Call(p, nil)
+}
+
+// SetSSHKeys serves the /u/$username/sshkeys put endpoint, and set ssh keys to
+// the list of ssh keys associated with the user. If the add parameter is set to
+// true then it will only add to the current list of ssh keys
+func (c *client) PutSSHKeys(p *params.PutSSHKeysRequest) error {
+	return c.Client.Call(p, nil)
+}
+
 // QueryUsers serves the /u endpoint. See http://tinyurl.com/lu3mmr9 for
 // details.
 func (c *client) QueryUsers(p *params.QueryUsersRequest) ([]string, error) {
@@ -22,6 +51,11 @@ func (c *client) QueryUsers(p *params.QueryUsersRequest) ([]string, error) {
 	return r, err
 }
 
+// SetUser creates or updates the user with the given username. If the
+// user already exists then any IDPGroups or SSHKeys specified in the
+// request will be ignored. See SetUserGroups, ModifyUserGroups,
+// SetSSHKeys and DeleteSSHKeys if you wish to manipulate these for a
+// user.
 func (c *client) SetUser(p *params.SetUserRequest) error {
 	return c.Client.Call(p, nil)
 }
@@ -35,6 +69,12 @@ func (c *client) SetUserExtraInfo(p *params.SetUserExtraInfoRequest) error {
 // ServeUserPutExtraInfoItem serves the /u/:username/extra-info/:item
 // endpoint, see http://tinyurl.com/l5dc4r4 for details.
 func (c *client) SetUserExtraInfoItem(p *params.SetUserExtraInfoItemRequest) error {
+	return c.Client.Call(p, nil)
+}
+
+// SetUserGroups serves the PUT /u/$username/groups endpoint, and sets the
+// list of groups associated with the user.
+func (c *client) SetUserGroups(p *params.SetUserGroupsRequest) error {
 	return c.Client.Call(p, nil)
 }
 
@@ -62,7 +102,7 @@ func (c *client) UserExtraInfoItem(p *params.UserExtraInfoItemRequest) (interfac
 	return r, err
 }
 
-// serveUserGroups serves the /u/$username/groups endpoint, and returns
+// UserGroups serves the GET /u/$username/groups endpoint, and returns
 // the list of groups associated with the user.
 func (c *client) UserGroups(p *params.UserGroupsRequest) ([]string, error) {
 	var r []string

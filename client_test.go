@@ -1,13 +1,14 @@
 package idmclient_test
 
 import (
+	"sort"
+
 	jc "github.com/juju/testing/checkers"
 	gc "gopkg.in/check.v1"
 	"gopkg.in/macaroon-bakery.v2-unstable/bakery"
 	"gopkg.in/macaroon-bakery.v2-unstable/bakery/checkers"
 	"gopkg.in/macaroon-bakery.v2-unstable/httpbakery"
 	"gopkg.in/macaroon.v2-unstable"
-	"sort"
 
 	"github.com/juju/idmclient"
 	"github.com/juju/idmclient/idmtest"
