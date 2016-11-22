@@ -119,6 +119,33 @@ type UserGroupsRequest struct {
 	Username          Username `httprequest:"username,path"`
 }
 
+// SetUserGroupsRequest is a request to set the list of groups associated
+// with the specified user.
+type SetUserGroupsRequest struct {
+	httprequest.Route `httprequest:"PUT /v1/u/:username/groups"`
+	Username          Username `httprequest:"username,path"`
+	Groups            Groups   `httprequest:",body"`
+}
+
+// Groups contains a list of group names.
+type Groups struct {
+	Groups []string `json:"groups"`
+}
+
+// ModifyUserGroupsRequest is a request to update the list of groups associated
+// with the specified user.
+type ModifyUserGroupsRequest struct {
+	httprequest.Route `httprequest:"POST /v1/u/:username/groups"`
+	Username          Username     `httprequest:"username,path"`
+	Groups            ModifyGroups `httprequest:",body"`
+}
+
+// ModifyGroups contains a set of group list modifications.
+type ModifyGroups struct {
+	Add    []string `json:"add"`
+	Remove []string `json:"remove"`
+}
+
 // UserIDPGroupsRequest defines the deprecated path for
 // UserGroupsRequest. It should no longer be used.
 type UserIDPGroupsRequest struct {
