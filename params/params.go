@@ -5,6 +5,7 @@ package params
 
 import (
 	"bytes"
+	"time"
 	"unicode/utf8"
 
 	"github.com/juju/httprequest"
@@ -95,15 +96,17 @@ type UserRequest struct {
 
 // User represents a user in the system.
 type User struct {
-	Username   Username            `json:"username,omitempty"`
-	ExternalID string              `json:"external_id"`
-	FullName   string              `json:"fullname"`
-	Email      string              `json:"email"`
-	GravatarID string              `json:"gravatar_id"`
-	IDPGroups  []string            `json:"idpgroups"`
-	Owner      Username            `json:"owner,omitempty"`
-	PublicKeys []*bakery.PublicKey `json:"public_keys"`
-	SSHKeys    []string            `json:"ssh_keys"`
+	Username      Username            `json:"username,omitempty"`
+	ExternalID    string              `json:"external_id"`
+	FullName      string              `json:"fullname"`
+	Email         string              `json:"email"`
+	GravatarID    string              `json:"gravatar_id"`
+	IDPGroups     []string            `json:"idpgroups"`
+	Owner         Username            `json:"owner,omitempty"`
+	PublicKeys    []*bakery.PublicKey `json:"public_keys"`
+	SSHKeys       []string            `json:"ssh_keys"`
+	LastLogin     *time.Time          `json:"last_login,omitempty"`
+	LastDischarge *time.Time          `json:"last_discharge,omitempty"`
 }
 
 // SetUserRequest is request to set the details of a user.
