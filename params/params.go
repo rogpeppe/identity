@@ -84,8 +84,24 @@ type LoginMethods struct {
 // QueryUsersRequest is a request to query the users in the system.
 type QueryUsersRequest struct {
 	httprequest.Route `httprequest:"GET /v1/u"`
-	ExternalID        string `httprequest:"external_id,form"`
-	Email             string `httprequest:"email,form"`
+
+	// ExternalID, if present, matches all identities with the given
+	// external ID (there should be a maximum of 1).
+	ExternalID string `httprequest:"external_id,form"`
+
+	// EMail, if present, matches all identities with the given email
+	// address.
+	Email string `httprequest:"email,form"`
+
+	// LastLoginSince, if present, must contain a time marshaled as
+	// if using Time.MarshalText. It matches all identies that have a
+	// last login time after the given time.
+	LastLoginSince string `httprequest:"last-login-since,form"`
+
+	// LastDischargeSince, if present, must contain a time marshaled as
+	// if using Time.MarshalText. It matches all identies that have a
+	// last discharge time after the given time.
+	LastDischargeSince string `httprequest:"last-discharge-since,form"`
 }
 
 // UserRequest is a request for the user details of the named user.
