@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/juju/httprequest"
+	"golang.org/x/net/context"
 	"gopkg.in/errgo.v1"
 	"gopkg.in/macaroon-bakery.v2-unstable/bakery"
 	"gopkg.in/macaroon-bakery.v2-unstable/bakery/checkers"
@@ -26,6 +27,9 @@ const (
 )
 
 // Client represents the client of an identity server.
+// It implements the bakery.IdentityClient interface, so can
+// be used directly to provide authentication for macaroon-based
+// services.
 type Client struct {
 	client
 
@@ -34,7 +38,7 @@ type Client struct {
 	permChecker *PermChecker
 }
 
-var _ IdentityClient = (*Client)(nil)
+var _ bakery.IdentityClient = (*Client)(nil)
 
 // NewParams holds the parameters for creating a new client.
 type NewParams struct {
@@ -59,13 +63,13 @@ type NewParams struct {
 // New returns a new client.
 func New(p NewParams) (*Client, error) {
 	var c Client
-	u, err := url.Parse(p.BaseURL)
+	_, err := url.Parse(p.BaseURL)
 	if p.BaseURL == "" || err != nil {
 		return nil, errgo.Newf("bad identity client base URL %q", p.BaseURL)
 	}
 	c.Client.BaseURL = p.BaseURL
 	if p.AgentUsername != "" {
-		if err := agent.SetUpAuth(p.Client, u, p.AgentUsername); err != nil {
+		if err := agent.SetUpAuth(p.Client, p.BaseURL, p.AgentUsername); err != nil {
 			return nil, errgo.Notef(err, "cannot set up agent authentication")
 		}
 		c.permChecker = NewPermChecker(&c, p.CacheTime)
@@ -75,37 +79,24 @@ func New(p NewParams) (*Client, error) {
 	return &c, nil
 }
 
-// IdentityCaveat implements IdentityClient.IdentityCaveat.
-func (c *Client) IdentityCaveats() []checkers.Caveat {
-	return []checkers.Caveat{
-		checkers.NeedDeclaredCaveat(
-			checkers.Caveat{
-				Location:  c.Client.BaseURL,
-				Condition: "is-authenticated-user",
-			},
-			"username",
-		),
-	}
+// IdentityFromContext implements bakery.IdentityClient.IdentityFromContext
+// by returning caveats created by IdentityCaveats.
+func (c *Client) IdentityFromContext(ctx context.Context) (bakery.Identity, []checkers.Caveat, error) {
+	return nil, IdentityCaveats(c.Client.BaseURL), nil
 }
 
 // DeclaredIdentity implements IdentityClient.DeclaredIdentity.
-// On success, it returns a value of type *User.
-func (c *Client) DeclaredIdentity(declared map[string]string) (Identity, error) {
+// On success, it returns a value that implements Identity as
+// well as bakery.Identity.
+func (c *Client) DeclaredIdentity(declared map[string]string) (bakery.Identity, error) {
 	username := declared["username"]
 	if username == "" {
 		return nil, errgo.Newf("no declared user name in %q", declared)
 	}
-	return &User{
+	return &identity{
 		client:   c,
 		username: username,
 	}, nil
-}
-
-// UserDeclaration returns a first party caveat that can be used
-// by an identity manager to declare an identity on a discharge
-// macaroon.
-func UserDeclaration(username string) checkers.Caveat {
-	return checkers.DeclaredCaveat("username", username)
 }
 
 // CacheEvict evicts username from the user info cache.
@@ -120,65 +111,6 @@ func (c *Client) CacheEvictAll() {
 	if c.permChecker != nil {
 		c.permChecker.CacheEvictAll()
 	}
-}
-
-// User is an implementation of Identity that also implements
-// IDM-specific methods for obtaining the user name and
-// group membership information.
-type User struct {
-	client   *Client
-	username string
-}
-
-var _ ACLUser = (*User)(nil)
-
-// Username returns the user name of the user.
-func (u *User) Username() (string, error) {
-	return u.username, nil
-}
-
-// Groups returns all the groups that the user
-// is a member of.
-//
-// Note: use of this method should be avoided if
-// possible, as a user may potentially be in huge
-// numbers of groups.
-func (u *User) Groups() ([]string, error) {
-	if u.client.permChecker != nil {
-		return u.client.permChecker.cache.Groups(u.username)
-	}
-	return nil, nil
-}
-
-// Allow reports whether the user should be allowed to access
-// any of the users or groups in the given ACL slice.
-func (u *User) Allow(acl []string) (bool, error) {
-	if u.client.permChecker != nil {
-		return u.client.permChecker.Allow(u.username, acl)
-	}
-	// No groups - just implement the trivial cases.
-	ok, _ := trivialAllow(u.username, acl)
-	return ok, nil
-}
-
-// Id implements Identity.Id. Currently it just returns the user
-// name, but user code should not rely on it doing that - eventually
-// it will return an opaque user identifier rather than the user name.
-func (u *User) Id() string {
-	return u.username
-}
-
-// Domain implements Identity.Domain.
-// Currently it always returns the empty domain.
-func (u *User) Domain() string {
-	return ""
-}
-
-// PublicKey implements Identity.PublicKey.
-// Currently it always returns nil as identity
-// declaration caveats are not encrypted.
-func (u *User) PublicKey() *bakery.PublicKey {
-	return nil
 }
 
 // LoginMethods returns information about the available login methods
@@ -207,6 +139,30 @@ func LoginMethods(client *http.Client, u *url.URL) (*params.LoginMethods, error)
 		return nil, errgo.Notef(err, "cannot unmarshal login methods")
 	}
 	return &lm, nil
+}
+
+// IdentityCaveats returns a slice containing a third party
+// "is-authenticated-user" caveat addressed to the identity server at
+// the given URL that will authenticate the user with discharged. The
+// user can be determined by calling Client.DeclaredIdentity on the
+// declarations made by the discharge macaroon,
+func IdentityCaveats(url string) []checkers.Caveat {
+	return []checkers.Caveat{
+		checkers.NeedDeclaredCaveat(
+			checkers.Caveat{
+				Location:  url,
+				Condition: "is-authenticated-user",
+			},
+			"username",
+		),
+	}
+}
+
+// UserDeclaration returns a first party caveat that can be used
+// by an identity manager to declare an identity on a discharge
+// macaroon.
+func UserDeclaration(username string) checkers.Caveat {
+	return checkers.DeclaredCaveat("username", username)
 }
 
 //go:generate httprequest-generate-client $IDM_SERVER_REPO/internal/v1 apiHandler client

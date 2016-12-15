@@ -2,13 +2,14 @@ package idmclient_test
 
 import (
 	"sort"
+	"time"
 
 	jc "github.com/juju/testing/checkers"
+	"golang.org/x/net/context"
 	gc "gopkg.in/check.v1"
+	"gopkg.in/errgo.v1"
 	"gopkg.in/macaroon-bakery.v2-unstable/bakery"
-	"gopkg.in/macaroon-bakery.v2-unstable/bakery/checkers"
 	"gopkg.in/macaroon-bakery.v2-unstable/httpbakery"
-	"gopkg.in/macaroon.v2-unstable"
 
 	"github.com/juju/idmclient"
 	"github.com/juju/idmclient/idmtest"
@@ -51,36 +52,38 @@ func (*clientSuite) TestIdentityClientWithDomainStripNoDomains(c *gc.C) {
 // testIdentityClient tests that the given identity client can be used to
 // create a third party caveat that when discharged provides
 // an Identity with the given id, user name and groups.
-func testIdentityClient(c *gc.C, idmClient idmclient.IdentityClient, bclient *httpbakery.Client, expectId, expectUser string, expectGroups []string) {
+func testIdentityClient(c *gc.C, idmClient bakery.IdentityClient, bclient *httpbakery.Client, expectId, expectUser string, expectGroups []string) {
 	kr := httpbakery.NewThirdPartyLocator(nil, nil)
 	kr.AllowInsecure()
-	bsvc, err := bakery.NewService(bakery.NewServiceParams{
-		Locator: kr,
+	b := bakery.New(bakery.BakeryParams{
+		Locator:        kr,
+		Key:            bakery.MustGenerateKey(),
+		IdentityClient: idmClient,
 	})
-	c.Assert(err, gc.IsNil)
-	m, err := bsvc.NewMacaroon(bakery.LatestVersion, idmClient.IdentityCaveats())
+	_, authErr := b.Checker.Auth().Allow(context.TODO(), bakery.LoginOp)
+	derr := errgo.Cause(authErr).(*bakery.DischargeRequiredError)
+
+	m, err := b.Oven.NewMacaroon(context.TODO(), bakery.LatestVersion, time.Now().Add(time.Minute), derr.Caveats, derr.Ops...)
 	c.Assert(err, gc.IsNil)
 
-	ms, err := bclient.DischargeAll(m)
+	ms, err := bclient.DischargeAll(context.TODO(), m)
 	c.Assert(err, gc.IsNil)
 
 	// Make sure that the macaroon discharged correctly and that it
 	// has the right declared caveats.
-	attrs, _, err := bsvc.CheckAny([]macaroon.Slice{ms}, nil, checkers.New())
+	authInfo, err := b.Checker.Auth(ms).Allow(context.TODO(), bakery.LoginOp)
 	c.Assert(err, gc.IsNil)
 
-	ident, err := idmClient.DeclaredIdentity(attrs)
-	c.Assert(err, gc.IsNil)
+	c.Assert(authInfo.Identity, gc.NotNil)
+	c.Assert(authInfo.Identity.Id(), gc.Equals, expectId)
+	c.Assert(authInfo.Identity.Domain(), gc.Equals, "")
 
-	c.Assert(ident.Id(), gc.Equals, expectId)
-	c.Assert(ident.Domain(), gc.Equals, "")
-
-	user := ident.(idmclient.ACLUser)
+	user := authInfo.Identity.(idmclient.Identity)
 
 	u, err := user.Username()
 	c.Assert(err, gc.IsNil)
 	c.Assert(u, gc.Equals, expectUser)
-	ok, err := user.Allow([]string{expectGroups[0]})
+	ok, err := user.Allow(context.TODO(), []string{expectGroups[0]})
 	c.Assert(err, gc.IsNil)
 	c.Assert(ok, gc.Equals, true)
 

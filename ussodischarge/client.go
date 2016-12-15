@@ -9,6 +9,7 @@ import (
 	"net/url"
 
 	"github.com/juju/httprequest"
+	"golang.org/x/net/context"
 	errgo "gopkg.in/errgo.v1"
 	"gopkg.in/macaroon-bakery.v2-unstable/bakery"
 	"gopkg.in/macaroon-bakery.v2-unstable/httpbakery"
@@ -18,14 +19,14 @@ import (
 const protocolName = "usso_discharge"
 
 // Macaroon returns a macaroon from the identity provider at the given
-// URL, which can be discharged using a Discharger. If doer is non-nil
+// URL that can be discharged using a Discharger. If doer is non-nil
 // then it will be used to collect the macaroon.
-func Macaroon(doer httprequest.Doer, url string) (*macaroon.Macaroon, error) {
+func Macaroon(ctx context.Context, doer httprequest.Doer, url string) (*bakery.Macaroon, error) {
 	client := &httprequest.Client{
 		Doer: doer,
 	}
 	var resp MacaroonResponse
-	if err := client.Get(url, &resp); err != nil {
+	if err := client.Get(ctx, url, &resp); err != nil {
 		return nil, errgo.Notef(err, "cannot get macaroon")
 	}
 	return resp.Macaroon, nil
@@ -50,7 +51,7 @@ func NewVisitor(f func(client *httpbakery.Client, url string) (macaroon.Slice, e
 // VisitWebPage implements httpbakery.Visitor.VisitWebPage by using a
 // macaroon previously discharged by a trusted Ubuntu SSO service as a
 // login token.
-func (v *Visitor) VisitWebPage(client *httpbakery.Client, methodURLs map[string]*url.URL) error {
+func (v *Visitor) VisitWebPage(ctx context.Context, client *httpbakery.Client, methodURLs map[string]*url.URL) error {
 	if methodURLs[protocolName] == nil {
 		return httpbakery.ErrMethodNotSupported
 	}
@@ -62,7 +63,7 @@ func (v *Visitor) VisitWebPage(client *httpbakery.Client, methodURLs map[string]
 	cl := httprequest.Client{
 		Doer: client,
 	}
-	err = cl.CallURL(url, &LoginRequest{
+	err = cl.CallURL(ctx, url, &LoginRequest{
 		Login: Login{
 			Macaroons: ms,
 		},
@@ -88,7 +89,10 @@ type Discharger struct {
 
 // AcquireDischarge discharges the given Ubuntu SSO third-party caveat using the
 // user information from the Discharger.
-func (d *Discharger) AcquireDischarge(cav macaroon.Caveat) (*macaroon.Macaroon, error) {
+func (d *Discharger) AcquireDischarge(ctx context.Context, cav macaroon.Caveat, payload []byte) (*bakery.Macaroon, error) {
+	if len(payload) > 0 {
+		return nil, errgo.Newf("USSO does not support macaroon-external third party caveats")
+	}
 	client := httprequest.Client{
 		BaseURL: cav.Location,
 		Doer:    d.Doer,
@@ -102,16 +106,16 @@ func (d *Discharger) AcquireDischarge(cav macaroon.Caveat) (*macaroon.Macaroon, 
 		},
 	}
 	var resp ussoDischargeResponse
-	if err := client.Call(req, &resp); err != nil {
+	if err := client.Call(ctx, req, &resp); err != nil {
 		return nil, errgo.Mask(err)
 	}
-	return &resp.Macaroon.Macaroon, nil
+	return bakery.NewLegacyMacaroon(&resp.Macaroon.Macaroon)
 }
 
 // DischargeAll discharges the given macaroon which is assumed to only
 // have third-party caveats addressed to an Ubuntu SSO server.
-func (d *Discharger) DischargeAll(m *macaroon.Macaroon) (macaroon.Slice, error) {
-	ms, err := bakery.DischargeAll(m, d.AcquireDischarge)
+func (d *Discharger) DischargeAll(ctx context.Context, m *bakery.Macaroon) (macaroon.Slice, error) {
+	ms, err := bakery.DischargeAll(ctx, m, d.AcquireDischarge)
 	if err != nil {
 		return nil, errgo.Mask(err)
 	}

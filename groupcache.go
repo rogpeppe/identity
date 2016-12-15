@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/juju/utils/cache"
+	"golang.org/x/net/context"
 	"gopkg.in/errgo.v1"
 
 	"github.com/juju/idmclient/params"
@@ -50,7 +51,7 @@ func (gc *GroupCache) Groups(username string) ([]string, error) {
 
 func (gc *GroupCache) groupMap(username string) (map[string]bool, error) {
 	groups0, err := gc.cache.Get(username, func() (interface{}, error) {
-		groups, err := gc.client.UserGroups(&params.UserGroupsRequest{
+		groups, err := gc.client.UserGroups(context.TODO(), &params.UserGroupsRequest{
 			Username: params.Username(username),
 		})
 		if err != nil && errgo.Cause(err) != params.ErrNotFound {

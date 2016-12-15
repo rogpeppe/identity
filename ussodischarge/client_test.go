@@ -10,8 +10,10 @@ import (
 
 	"github.com/juju/httprequest"
 	jc "github.com/juju/testing/checkers"
+	"golang.org/x/net/context"
 	gc "gopkg.in/check.v1"
 	errgo "gopkg.in/errgo.v1"
+	"gopkg.in/macaroon-bakery.v2-unstable/bakery"
 	"gopkg.in/macaroon-bakery.v2-unstable/httpbakery"
 	"gopkg.in/macaroon.v2-unstable"
 
@@ -21,23 +23,19 @@ import (
 
 var _ httpbakery.Visitor = (*ussodischarge.Visitor)(nil)
 
+var testContext = context.Background()
+
 type clientSuite struct {
-	testMacaroon          *macaroon.Macaroon
+	testMacaroon          *bakery.Macaroon
 	testDischargeMacaroon *macaroon.Macaroon
 	srv                   *httptest.Server
-	macaroon              *macaroon.Macaroon
+
+	// macaroon is returned from the /macaroon endpoint of the test server.
+	// If this is nil, an error will be returned instead.
+	macaroon *bakery.Macaroon
 }
 
 var _ = gc.Suite(&clientSuite{})
-
-func (s *clientSuite) SetUpSuite(c *gc.C) {
-	var err error
-	s.testMacaroon, err = macaroon.New([]byte("test rootkey"), []byte("test macaroon"), "test location", macaroon.LatestVersion)
-	c.Assert(err, gc.Equals, nil)
-	// Discharge macaroons from Ubuntu SSO will be binary encoded in the version 1 format.
-	s.testDischargeMacaroon, err = macaroon.New([]byte("test discharge rootkey"), []byte("test discharge macaroon"), "test discharge location", macaroon.V1)
-	c.Assert(err, gc.Equals, nil)
-}
 
 // ServeHTTP allows us to use the test suite as a handler to test the
 // client methods against.
@@ -55,6 +53,13 @@ func (s *clientSuite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *clientSuite) SetUpTest(c *gc.C) {
+	var err error
+	s.testMacaroon, err = bakery.NewMacaroon([]byte("test rootkey"), []byte("test macaroon"), "test location", bakery.LatestVersion, nil)
+	c.Assert(err, gc.Equals, nil)
+	// Discharge macaroons from Ubuntu SSO will be binary encoded in the version 1 format.
+	s.testDischargeMacaroon, err = macaroon.New([]byte("test discharge rootkey"), []byte("test discharge macaroon"), "test discharge location", macaroon.V1)
+	c.Assert(err, gc.Equals, nil)
+
 	s.srv = httptest.NewServer(s)
 	s.macaroon = nil
 }
@@ -65,26 +70,26 @@ func (s *clientSuite) TearDownTest(c *gc.C) {
 
 func (s *clientSuite) TestMacaroon(c *gc.C) {
 	s.macaroon = s.testMacaroon
-	m, err := ussodischarge.Macaroon(nil, s.srv.URL+"/macaroon")
+	m, err := ussodischarge.Macaroon(testContext, nil, s.srv.URL+"/macaroon")
 	c.Assert(err, gc.Equals, nil)
-	c.Assert(m, jc.DeepEquals, s.testMacaroon)
+	c.Assert(m.M(), jc.DeepEquals, s.testMacaroon.M())
 }
 
 func (s *clientSuite) TestMacaroonError(c *gc.C) {
-	m, err := ussodischarge.Macaroon(nil, s.srv.URL+"/macaroon")
+	m, err := ussodischarge.Macaroon(testContext, nil, s.srv.URL+"/macaroon")
 	c.Assert(m, gc.IsNil)
-	c.Assert(err, gc.ErrorMatches, `cannot get macaroon: test error`)
+	c.Assert(err, gc.ErrorMatches, `cannot get macaroon: Get http.*: test error`)
 }
 
 func (s *clientSuite) TestVisitor(c *gc.C) {
 	v := ussodischarge.NewVisitor(func(_ *httpbakery.Client, url string) (macaroon.Slice, error) {
 		c.Assert(url, gc.Equals, s.srv.URL+"/login")
-		return macaroon.Slice{s.testMacaroon}, nil
+		return macaroon.Slice{s.testMacaroon.M()}, nil
 	})
 	u, err := url.Parse(s.srv.URL + "/login")
 	c.Assert(err, gc.Equals, nil)
 	client := httpbakery.NewClient()
-	err = v.VisitWebPage(client, map[string]*url.URL{ussodischarge.ProtocolName: u})
+	err = v.VisitWebPage(testContext, client, map[string]*url.URL{ussodischarge.ProtocolName: u})
 	c.Assert(err, gc.Equals, nil)
 }
 
@@ -93,7 +98,7 @@ func (s *clientSuite) TestVisitorMethodNotSupported(c *gc.C) {
 		return nil, errgo.New("function called unexpectedly")
 	})
 	client := httpbakery.NewClient()
-	err := v.VisitWebPage(client, map[string]*url.URL{})
+	err := v.VisitWebPage(testContext, client, map[string]*url.URL{})
 	c.Assert(errgo.Cause(err), gc.Equals, httpbakery.ErrMethodNotSupported)
 }
 
@@ -104,7 +109,7 @@ func (s *clientSuite) TestVisitorFunctionError(c *gc.C) {
 	u, err := url.Parse(s.srv.URL + "/login")
 	c.Assert(err, gc.Equals, nil)
 	client := httpbakery.NewClient()
-	err = v.VisitWebPage(client, map[string]*url.URL{ussodischarge.ProtocolName: u})
+	err = v.VisitWebPage(testContext, client, map[string]*url.URL{ussodischarge.ProtocolName: u})
 	c.Assert(errgo.Cause(err), gc.Equals, testCause)
 	c.Assert(err, gc.ErrorMatches, "test error")
 }
@@ -115,12 +120,12 @@ func (s *clientSuite) TestAcquireDischarge(c *gc.C) {
 		Password: "secret",
 		OTP:      "123456",
 	}
-	m, err := d.AcquireDischarge(macaroon.Caveat{
+	m, err := d.AcquireDischarge(testContext, macaroon.Caveat{
 		Location: s.srv.URL,
 		Id:       []byte("test caveat id"),
-	})
+	}, nil)
 	c.Assert(err, gc.Equals, nil)
-	c.Assert(m, jc.DeepEquals, s.testDischargeMacaroon)
+	c.Assert(m.M(), jc.DeepEquals, s.testDischargeMacaroon)
 }
 
 func (s *clientSuite) TestAcquireDischargeError(c *gc.C) {
@@ -129,41 +134,41 @@ func (s *clientSuite) TestAcquireDischargeError(c *gc.C) {
 		Password: "bad-secret",
 		OTP:      "123456",
 	}
-	m, err := d.AcquireDischarge(macaroon.Caveat{
+	m, err := d.AcquireDischarge(testContext, macaroon.Caveat{
 		Location: s.srv.URL,
 		Id:       []byte("test caveat id"),
-	})
-	c.Assert(err, gc.ErrorMatches, `Provided email/password is not correct.`)
+	}, nil)
+	c.Assert(err, gc.ErrorMatches, `Post http.*: Provided email/password is not correct.`)
 	c.Assert(m, gc.IsNil)
 }
 
 func (s *clientSuite) TestDischargeAll(c *gc.C) {
-	m := *s.testMacaroon
-	err := m.AddThirdPartyCaveat([]byte("third party root key"), []byte("third party caveat id"), s.srv.URL)
+	m := s.testMacaroon.Clone()
+	err := m.M().AddThirdPartyCaveat([]byte("third party root key"), []byte("third party caveat id"), s.srv.URL)
 	c.Assert(err, gc.Equals, nil)
 	d := &ussodischarge.Discharger{
 		Email:    "user@example.com",
 		Password: "secret",
 		OTP:      "123456",
 	}
-	ms, err := d.DischargeAll(&m)
+	ms, err := d.DischargeAll(testContext, m)
 	c.Assert(err, gc.Equals, nil)
-	md := *s.testDischargeMacaroon
-	md.Bind(m.Signature())
-	c.Assert(ms, jc.DeepEquals, macaroon.Slice{&m, &md})
+	md := s.testDischargeMacaroon.Clone()
+	md.Bind(m.M().Signature())
+	c.Assert(ms, jc.DeepEquals, macaroon.Slice{m.M(), md})
 }
 
 func (s *clientSuite) TestDischargeAllError(c *gc.C) {
-	m := *s.testMacaroon
-	err := m.AddThirdPartyCaveat([]byte("third party root key"), []byte("third party caveat id"), s.srv.URL)
+	m := s.testMacaroon.Clone()
+	err := m.M().AddThirdPartyCaveat([]byte("third party root key"), []byte("third party caveat id"), s.srv.URL)
 	c.Assert(err, gc.Equals, nil)
 	d := &ussodischarge.Discharger{
 		Email:    "user@example.com",
 		Password: "bad-secret",
 		OTP:      "123456",
 	}
-	ms, err := d.DischargeAll(&m)
-	c.Assert(err, gc.ErrorMatches, `cannot get discharge from ".*": Provided email/password is not correct.`)
+	ms, err := d.DischargeAll(testContext, m)
+	c.Assert(err, gc.ErrorMatches, `cannot get discharge from ".*": Post http.*: Provided email/password is not correct.`)
 	c.Assert(ms, gc.IsNil)
 }
 
