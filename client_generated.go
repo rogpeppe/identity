@@ -5,9 +5,9 @@ package idmclient
 
 import (
 	"github.com/juju/httprequest"
-	"gopkg.in/macaroon.v2-unstable"
-
 	"github.com/juju/idmclient/params"
+	"golang.org/x/net/context"
+	"gopkg.in/macaroon-bakery.v2-unstable/bakery"
 )
 
 type client struct {
@@ -16,15 +16,15 @@ type client struct {
 
 // DeleteSSHKeys serves the /u/$username/sshkeys delete endpoint, and remove
 // ssh keys from the list of ssh keys associated with the user.
-func (c *client) DeleteSSHKeys(p *params.DeleteSSHKeysRequest) error {
-	return c.Client.Call(p, nil)
+func (c *client) DeleteSSHKeys(ctx context.Context, p *params.DeleteSSHKeysRequest) error {
+	return c.Client.Call(ctx, p, nil)
 }
 
 // GetSSHKeys serves the /u/$username/sshkeys endpoint, and returns
 // the list of ssh keys associated with the user.
-func (c *client) GetSSHKeys(p *params.SSHKeysRequest) (params.SSHKeysResponse, error) {
+func (c *client) GetSSHKeys(ctx context.Context, p *params.SSHKeysRequest) (params.SSHKeysResponse, error) {
 	var r params.SSHKeysResponse
-	err := c.Client.Call(p, &r)
+	err := c.Client.Call(ctx, p, &r)
 	return r, err
 }
 
@@ -32,22 +32,22 @@ func (c *client) GetSSHKeys(p *params.SSHKeysRequest) (params.SSHKeysResponse, e
 // updates the list of groups associated with the user. Groups can be
 // either added or removed in a single query. It is an error to try and
 // both add and remove groups at the same time.
-func (c *client) ModifyUserGroups(p *params.ModifyUserGroupsRequest) error {
-	return c.Client.Call(p, nil)
+func (c *client) ModifyUserGroups(ctx context.Context, p *params.ModifyUserGroupsRequest) error {
+	return c.Client.Call(ctx, p, nil)
 }
 
 // SetSSHKeys serves the /u/$username/sshkeys put endpoint, and set ssh keys to
 // the list of ssh keys associated with the user. If the add parameter is set to
 // true then it will only add to the current list of ssh keys
-func (c *client) PutSSHKeys(p *params.PutSSHKeysRequest) error {
-	return c.Client.Call(p, nil)
+func (c *client) PutSSHKeys(ctx context.Context, p *params.PutSSHKeysRequest) error {
+	return c.Client.Call(ctx, p, nil)
 }
 
 // QueryUsers serves the /u endpoint. See http://tinyurl.com/lu3mmr9 for
 // details.
-func (c *client) QueryUsers(p *params.QueryUsersRequest) ([]string, error) {
+func (c *client) QueryUsers(ctx context.Context, p *params.QueryUsersRequest) ([]string, error) {
 	var r []string
-	err := c.Client.Call(p, &r)
+	err := c.Client.Call(ctx, p, &r)
 	return r, err
 }
 
@@ -56,79 +56,79 @@ func (c *client) QueryUsers(p *params.QueryUsersRequest) ([]string, error) {
 // request will be ignored. See SetUserGroups, ModifyUserGroups,
 // SetSSHKeys and DeleteSSHKeys if you wish to manipulate these for a
 // user.
-func (c *client) SetUser(p *params.SetUserRequest) error {
-	return c.Client.Call(p, nil)
+func (c *client) SetUser(ctx context.Context, p *params.SetUserRequest) error {
+	return c.Client.Call(ctx, p, nil)
 }
 
 // SetUserExtraInfo serves the /v1/u/:username/extra-info endpoint, see
 // http://tinyurl.com/mqpynlw for details.
-func (c *client) SetUserExtraInfo(p *params.SetUserExtraInfoRequest) error {
-	return c.Client.Call(p, nil)
+func (c *client) SetUserExtraInfo(ctx context.Context, p *params.SetUserExtraInfoRequest) error {
+	return c.Client.Call(ctx, p, nil)
 }
 
 // ServeUserPutExtraInfoItem serves the /u/:username/extra-info/:item
 // endpoint, see http://tinyurl.com/l5dc4r4 for details.
-func (c *client) SetUserExtraInfoItem(p *params.SetUserExtraInfoItemRequest) error {
-	return c.Client.Call(p, nil)
+func (c *client) SetUserExtraInfoItem(ctx context.Context, p *params.SetUserExtraInfoItemRequest) error {
+	return c.Client.Call(ctx, p, nil)
 }
 
 // SetUserGroups serves the PUT /u/$username/groups endpoint, and sets the
 // list of groups associated with the user.
-func (c *client) SetUserGroups(p *params.SetUserGroupsRequest) error {
-	return c.Client.Call(p, nil)
+func (c *client) SetUserGroups(ctx context.Context, p *params.SetUserGroupsRequest) error {
+	return c.Client.Call(ctx, p, nil)
 }
 
 // User serves the /u/$username endpoint. See http://tinyurl.com/lrdjwmw
 // for details.
-func (c *client) User(p *params.UserRequest) (*params.User, error) {
+func (c *client) User(ctx context.Context, p *params.UserRequest) (*params.User, error) {
 	var r *params.User
-	err := c.Client.Call(p, &r)
+	err := c.Client.Call(ctx, p, &r)
 	return r, err
 }
 
 // UserExtraInfo serves the /v1/u/:username/extra-info endpoint, see
 // http://tinyurl.com/mxo24yy for details.
-func (c *client) UserExtraInfo(p *params.UserExtraInfoRequest) (map[string]interface{}, error) {
+func (c *client) UserExtraInfo(ctx context.Context, p *params.UserExtraInfoRequest) (map[string]interface{}, error) {
 	var r map[string]interface{}
-	err := c.Client.Call(p, &r)
+	err := c.Client.Call(ctx, p, &r)
 	return r, err
 }
 
 // UserExtraInfoItem serves the /u/:username/extra-info/:item
 // endpoint, see http://tinyurl.com/mjuu7dt for details.
-func (c *client) UserExtraInfoItem(p *params.UserExtraInfoItemRequest) (interface{}, error) {
+func (c *client) UserExtraInfoItem(ctx context.Context, p *params.UserExtraInfoItemRequest) (interface{}, error) {
 	var r interface{}
-	err := c.Client.Call(p, &r)
+	err := c.Client.Call(ctx, p, &r)
 	return r, err
 }
 
 // UserGroups serves the GET /u/$username/groups endpoint, and returns
 // the list of groups associated with the user.
-func (c *client) UserGroups(p *params.UserGroupsRequest) ([]string, error) {
+func (c *client) UserGroups(ctx context.Context, p *params.UserGroupsRequest) ([]string, error) {
 	var r []string
-	err := c.Client.Call(p, &r)
+	err := c.Client.Call(ctx, p, &r)
 	return r, err
 }
 
 // UserIDPGroups serves the /u/$username/idpgroups endpoint, and returns
 // the list of groups associated with the user. This endpoint should no longer be used
 // and is maintained for backwards compatibility purposes only.
-func (c *client) UserIDPGroups(p *params.UserIDPGroupsRequest) ([]string, error) {
+func (c *client) UserIDPGroups(ctx context.Context, p *params.UserIDPGroupsRequest) ([]string, error) {
 	var r []string
-	err := c.Client.Call(p, &r)
+	err := c.Client.Call(ctx, p, &r)
 	return r, err
 }
 
 // UserToken serves a token, in the form of a macaroon, identifying
 // the user. This token can only be generated by an administrator.
-func (c *client) UserToken(p *params.UserTokenRequest) (*macaroon.Macaroon, error) {
-	var r *macaroon.Macaroon
-	err := c.Client.Call(p, &r)
+func (c *client) UserToken(ctx context.Context, p *params.UserTokenRequest) (*bakery.Macaroon, error) {
+	var r *bakery.Macaroon
+	err := c.Client.Call(ctx, p, &r)
 	return r, err
 }
 
-func (c *client) VerifyToken(p *params.VerifyTokenRequest) (map[string]string, error) {
+func (c *client) VerifyToken(ctx context.Context, p *params.VerifyTokenRequest) (map[string]string, error) {
 	var r map[string]string
-	err := c.Client.Call(p, &r)
+	err := c.Client.Call(ctx, p, &r)
 	return r, err
 }

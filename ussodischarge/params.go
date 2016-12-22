@@ -9,6 +9,7 @@ import (
 
 	"github.com/juju/httprequest"
 	errgo "gopkg.in/errgo.v1"
+	"gopkg.in/macaroon-bakery.v2-unstable/bakery"
 	"gopkg.in/macaroon.v2-unstable"
 )
 
@@ -16,7 +17,7 @@ import (
 // identity provider, it will be a macaroon with a third party discharge
 // addressed to an Ubuntu SSO service.
 type MacaroonResponse struct {
-	Macaroon *macaroon.Macaroon `json:"macaroon,omitempty"`
+	Macaroon *bakery.Macaroon `json:"macaroon,omitempty"`
 }
 
 // LoginRequest is a request to log in using a macaroon that has been

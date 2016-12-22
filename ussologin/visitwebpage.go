@@ -8,6 +8,7 @@ import (
 	"net/url"
 
 	"github.com/juju/usso"
+	"golang.org/x/net/context"
 	"gopkg.in/errgo.v1"
 	"gopkg.in/juju/environschema.v1/form"
 	"gopkg.in/macaroon-bakery.v2-unstable/httpbakery"
@@ -20,14 +21,14 @@ import (
 // Existing oauth tokens can be obtained, or new ones stored If non-nil, the
 // given TokenStore is used to store the oauth token obtained during the login
 // process so that less interaction may be required in future.
-func VisitWebPage(tokenName string, client *http.Client, filler form.Filler, store TokenStore) func(*url.URL) error {
+func VisitWebPage(ctx context.Context, tokenName string, client *http.Client, filler form.Filler, store TokenStore) func(*url.URL) error {
 	visitor := NewVisitor(tokenName, filler, store)
 	return func(u *url.URL) error {
-		methodURLs, err := httpbakery.GetInteractionMethods(client, u)
+		methodURLs, err := httpbakery.GetInteractionMethods(ctx, client, u)
 		if err != nil {
 			return errgo.Mask(err)
 		}
-		return visitor.VisitWebPage(&httpbakery.Client{Client: client}, methodURLs)
+		return visitor.VisitWebPage(ctx, &httpbakery.Client{Client: client}, methodURLs)
 	}
 }
 
@@ -53,12 +54,14 @@ func NewVisitor(tokenName string, filler form.Filler, store TokenStore) *Visitor
 	}
 }
 
+var _ httpbakery.Visitor = (*Visitor)(nil)
+
 // VisitWebPage implements httpbakery.Visitor.VisitWebPage by attempting
 // to obtain an Ubuntu SSO OAuth token and use that to sign a request to
 // the identity manager. If Ubuntu SSO returns an error when attempting
 // to obtain the token the error returned will have a cause of type
 // *usso.Error.
-func (v *Visitor) VisitWebPage(client *httpbakery.Client, methodURLs map[string]*url.URL) error {
+func (v *Visitor) VisitWebPage(ctx context.Context, client *httpbakery.Client, methodURLs map[string]*url.URL) error {
 	if methodURLs["usso_oauth"] == nil {
 		return httpbakery.ErrMethodNotSupported
 	}
