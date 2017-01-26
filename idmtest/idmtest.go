@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/juju/httprequest"
-	"github.com/juju/idmclient"
 	"github.com/juju/utils"
 	"github.com/julienschmidt/httprouter"
 	"golang.org/x/net/context"
@@ -23,6 +22,7 @@ import (
 	"gopkg.in/macaroon-bakery.v2-unstable/httpbakery"
 	"gopkg.in/macaroon-bakery.v2-unstable/httpbakery/agent"
 
+	"github.com/juju/idmclient"
 	"github.com/juju/idmclient/params"
 )
 
