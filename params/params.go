@@ -257,3 +257,14 @@ type SetUserExtraInfoItemRequest struct {
 	Item              string      `httprequest:"item,path"`
 	Data              interface{} `httprequest:",body"`
 }
+
+// WhoAmIRequest holds parameters for requesting the current user name.
+type WhoAmIRequest struct {
+	httprequest.Route `httprequest:"GET /v1/whoami"`
+}
+
+// WhoAmIResponse holds information on the currently
+// authenticated user.
+type WhoAmIResponse struct {
+	User string `json:"user"`
+}

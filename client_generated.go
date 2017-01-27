@@ -5,9 +5,10 @@ package idmclient
 
 import (
 	"github.com/juju/httprequest"
-	"github.com/juju/idmclient/params"
 	"golang.org/x/net/context"
 	"gopkg.in/macaroon-bakery.v2-unstable/bakery"
+
+	"github.com/juju/idmclient/params"
 )
 
 type client struct {
@@ -129,6 +130,14 @@ func (c *client) UserToken(ctx context.Context, p *params.UserTokenRequest) (*ba
 
 func (c *client) VerifyToken(ctx context.Context, p *params.VerifyTokenRequest) (map[string]string, error) {
 	var r map[string]string
+	err := c.Client.Call(ctx, p, &r)
+	return r, err
+}
+
+// WhoAmI returns authentication information on the client that is
+// making the call.
+func (c *client) WhoAmI(ctx context.Context, p *params.WhoAmIRequest) (params.WhoAmIResponse, error) {
+	var r params.WhoAmIResponse
 	err := c.Client.Call(ctx, p, &r)
 	return r, err
 }
