@@ -4,6 +4,7 @@
 package idmclient
 
 import (
+	"strings"
 	"time"
 
 	"gopkg.in/errgo.v1"
@@ -43,7 +44,20 @@ func trivialAllow(username string, acl []string) (allow, isTrivial bool) {
 		return false, true
 	}
 	for _, name := range acl {
-		if name == "everyone" || name == username {
+		if name == username {
+			return true, true
+		}
+		suffix := strings.TrimPrefix(name, "everyone")
+		if len(suffix) == len(name) {
+			continue
+		}
+		if suffix != "" && suffix[0] != '@' {
+			continue
+		}
+		// name is either "everyone" or "everyone@somewhere". We consider
+		// the user to be part of everyone@somewhere if their username has
+		// the suffix @somewhere.
+		if strings.HasSuffix(username, suffix) {
 			return true, true
 		}
 	}
