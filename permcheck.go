@@ -4,6 +4,7 @@
 package idmclient
 
 import (
+	"log"
 	"strings"
 	"time"
 
@@ -17,8 +18,20 @@ type PermChecker struct {
 	cache *GroupCache
 }
 
-// NewPermChecker returns a permission checker
-// that uses the given identity client to check permissions.
+// NewPermChecker returns a permission checker that uses the given
+// identity client to check permissions. The following rules apply when
+// checking if a user is a member of a name in an ACL. The PermChecker
+// chooses whether to authorize the user u with respect to the ACL name n
+// by following these rules:
+//
+// - If u is identical to n, authorization is granted.
+// - If n is "everyone", authorization is granted.
+// - If n is "everyone-local", authorization is granted if u does not have a domain.
+// - If n is "everyone@$domain", authorization is granted if u has the domain $domain.
+// - If n is "everyone-local@$domain", authorization is granted if if u is of the form
+// "$username@$domain" where $username contains no @ characters.
+// - Otherwise the identity server is consulted to find out whether authorization
+// should be granted.
 //
 // It will cache results for at most cacheTime.
 func NewPermChecker(c *Client, cacheTime time.Duration) *PermChecker {
@@ -43,25 +56,40 @@ func trivialAllow(username string, acl []string) (allow, isTrivial bool) {
 	if len(acl) == 0 {
 		return false, true
 	}
+	allEveryone := true
 	for _, name := range acl {
 		if name == username {
 			return true, true
 		}
 		suffix := strings.TrimPrefix(name, "everyone")
 		if len(suffix) == len(name) {
+			allEveryone = false
 			continue
 		}
-		if suffix != "" && suffix[0] != '@' {
+		isLocal := false
+		if s := strings.TrimPrefix(suffix, "-local"); len(s) != len(suffix) {
+			isLocal = true
+			suffix = s
+		}
+		if len(suffix) != 0 && suffix[0] != '@' {
+			allEveryone = false
+			// The special word doesn't end at a domain boundary or end of string.
 			continue
 		}
-		// name is either "everyone" or "everyone@somewhere". We consider
-		// the user to be part of everyone@somewhere if their username has
-		// the suffix @somewhere.
-		if strings.HasSuffix(username, suffix) {
-			return true, true
+		domainPrefix := strings.TrimSuffix(username, suffix)
+		if len(suffix) != 0 && len(domainPrefix) == len(username) {
+			// The username doesn't have the required domain suffix.
+			continue
 		}
+		if isLocal && strings.Contains(domainPrefix, "@") {
+			// The username contains a domain but @no-domain has been specified.
+			continue
+		}
+		return true, true
 	}
-	return false, false
+	// Note that if all the ACL members are of the form everyone...,
+	// the result counts as trivial.
+	return false, allEveryone
 }
 
 // Allow reports whether the given ACL admits the user with the given
