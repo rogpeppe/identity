@@ -33,8 +33,8 @@ type domainStrippingClient struct {
 }
 
 // DeclaredIdentity implements IdentityClient.DeclaredIdentity.
-func (c *domainStrippingClient) DeclaredIdentity(attrs map[string]string) (bakery.Identity, error) {
-	ident0, err := c.c.DeclaredIdentity(attrs)
+func (c *domainStrippingClient) DeclaredIdentity(ctx context.Context, attrs map[string]string) (bakery.Identity, error) {
+	ident0, err := c.c.DeclaredIdentity(ctx, attrs)
 	if err != nil {
 		return nil, err
 	}
