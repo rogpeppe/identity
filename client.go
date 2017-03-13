@@ -88,7 +88,7 @@ func (c *Client) IdentityFromContext(ctx context.Context) (bakery.Identity, []ch
 // DeclaredIdentity implements IdentityClient.DeclaredIdentity.
 // On success, it returns a value that implements Identity as
 // well as bakery.Identity.
-func (c *Client) DeclaredIdentity(declared map[string]string) (bakery.Identity, error) {
+func (c *Client) DeclaredIdentity(ctx context.Context, declared map[string]string) (bakery.Identity, error) {
 	username := declared["username"]
 	if username == "" {
 		return nil, errgo.Newf("no declared user name in %q", declared)
