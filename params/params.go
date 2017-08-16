@@ -268,3 +268,16 @@ type WhoAmIRequest struct {
 type WhoAmIResponse struct {
 	User string `json:"user"`
 }
+
+// DischargeTokenForUserRequest is the request to get a discharge token
+// for a specific user.
+type DischargeTokenForUserRequest struct {
+	httprequest.Route `httprequest:"GET /v1/discharge-token-for-user"`
+	Username          Username `httprequest:"username,form"`
+}
+
+// DischargeTokenForUserResponse holds the discharge token, in the form
+// of a macaroon, for the requested user.
+type DischargeTokenForUserResponse struct {
+	DischargeToken *bakery.Macaroon
+}
