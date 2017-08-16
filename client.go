@@ -165,4 +165,4 @@ func UserDeclaration(username string) checkers.Caveat {
 	return checkers.DeclaredCaveat("username", username)
 }
 
-//go:generate httprequest-generate-client $IDM_SERVER_REPO/internal/v1 apiHandler client
+//go:generate httprequest-generate-client $IDM_SERVER_REPO/internal/v1 handler client
