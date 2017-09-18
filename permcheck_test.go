@@ -20,11 +20,12 @@ var _ = gc.Suite(&permCheckerSuite{})
 
 func (s *permCheckerSuite) TestPermChecker(c *gc.C) {
 	srv := idmtest.NewServer()
+	srv.AddUser("server-user", idmtest.GroupListGroup)
 	srv.AddUser("alice", "somegroup")
 
 	client, err := idmclient.New(idmclient.NewParams{
 		BaseURL: srv.URL.String(),
-		Client:  srv.Client("alice"),
+		Client:  srv.Client("server-user"),
 	})
 	c.Assert(err, gc.IsNil)
 
@@ -83,11 +84,12 @@ func (s *permCheckerSuite) TestPermChecker(c *gc.C) {
 
 func (s *permCheckerSuite) TestGroupCache(c *gc.C) {
 	srv := idmtest.NewServer()
+	srv.AddUser("server-user", idmtest.GroupListGroup)
 	srv.AddUser("alice", "somegroup", "othergroup")
 
 	client, err := idmclient.New(idmclient.NewParams{
 		BaseURL: srv.URL.String(),
-		Client:  srv.Client("alice"),
+		Client:  srv.Client("server-user"),
 	})
 	c.Assert(err, gc.IsNil)
 

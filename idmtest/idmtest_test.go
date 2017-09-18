@@ -24,6 +24,7 @@ var _ = gc.Suite(&suite{})
 func (*suite) TestDischarge(c *gc.C) {
 	ctx := context.TODO()
 	srv := idmtest.NewServer()
+	srv.AddUser("server-user", idmtest.GroupListGroup)
 	srv.AddUser("bob", "somegroup")
 	client := srv.Client("bob")
 
@@ -103,10 +104,11 @@ func (*suite) TestDischargeDefaultUser(c *gc.C) {
 
 func (*suite) TestGroups(c *gc.C) {
 	srv := idmtest.NewServer()
+	srv.AddUser("server-user", idmtest.GroupListGroup)
 	srv.AddUser("bob", "beatles", "bobbins")
 	srv.AddUser("alice")
 
-	client := srv.IDMClient("bob")
+	client := srv.IDMClient("server-user")
 	groups, err := client.UserGroups(context.TODO(), &idmparams.UserGroupsRequest{
 		Username: "bob",
 	})
