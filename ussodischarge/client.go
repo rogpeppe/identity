@@ -6,8 +6,6 @@
 package ussodischarge
 
 import (
-	"net/url"
-
 	"github.com/juju/httprequest"
 	"golang.org/x/net/context"
 	errgo "gopkg.in/errgo.v1"
@@ -32,43 +30,53 @@ func Macaroon(ctx context.Context, doer httprequest.Doer, url string) (*bakery.M
 	return resp.Macaroon, nil
 }
 
-// Visitor is an httpbakery.Visitor that will login using a macaroon
-// discharged by an Ubuntu SSO service.
-type Visitor struct {
+type interactionInfo struct {
+	URL string `json:"url"`
+}
+
+func SetInteraction(ierr *httpbakery.Error, url string) {
+	ierr.SetInteraction(protocolName, interactionInfo{URL: url})
+}
+
+// Interactor is an httpbakery.Interactor that will login using a
+// macaroon discharged by an Ubuntu SSO service.
+type Interactor struct {
 	f func(*httpbakery.Client, string) (macaroon.Slice, error)
 }
 
-// NewVisitor creates a Visitor which uses a macaroon previously collected
-// with Macaroon and discharged by the requisit Ubuntu SSO service to log
-// in. The discharged macaroon to use will be requested from the given
-// function when required.
-func NewVisitor(f func(client *httpbakery.Client, url string) (macaroon.Slice, error)) *Visitor {
-	return &Visitor{
+// NewInteractor creates an Interactor which uses a macaroon previously
+// collected with Macaroon and discharged by the requisit Ubuntu SSO
+// service to log in. The discharged macaroon to use will be requested
+// from the given function when required.
+func NewInteractor(f func(client *httpbakery.Client, url string) (macaroon.Slice, error)) *Interactor {
+	return &Interactor{
 		f: f,
 	}
 }
 
-// VisitWebPage implements httpbakery.Visitor.VisitWebPage by using a
-// macaroon previously discharged by a trusted Ubuntu SSO service as a
-// login token.
-func (v *Visitor) VisitWebPage(ctx context.Context, client *httpbakery.Client, methodURLs map[string]*url.URL) error {
-	if methodURLs[protocolName] == nil {
-		return httpbakery.ErrMethodNotSupported
+func (i *Interactor) Kind() string {
+	return protocolName
+}
+
+func (i *Interactor) Interact(ctx context.Context, client *httpbakery.Client, location string, ierr *httpbakery.Error) (*httpbakery.DischargeToken, error) {
+	var info interactionInfo
+	if err := ierr.InteractionMethod(protocolName, &info); err != nil {
+		return nil, errgo.Mask(err, errgo.Is(httpbakery.ErrInteractionMethodNotFound))
 	}
-	url := methodURLs[protocolName].String()
-	ms, err := v.f(client, url)
+	ms, err := i.f(client, info.URL)
 	if err != nil {
-		return errgo.Mask(err, errgo.Any)
+		return nil, errgo.Mask(err, errgo.Any)
 	}
 	cl := httprequest.Client{
 		Doer: client,
 	}
-	err = cl.CallURL(ctx, url, &LoginRequest{
+	var resp LoginResponse
+	err = cl.CallURL(ctx, info.URL, &LoginRequest{
 		Login: Login{
 			Macaroons: ms,
 		},
-	}, nil)
-	return errgo.Mask(err)
+	}, &resp)
+	return resp.DischargeToken, errgo.Mask(err)
 }
 
 // Discharger is a client that can discharge Ubuntu SSO third-party

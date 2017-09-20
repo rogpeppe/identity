@@ -69,7 +69,13 @@ func New(p NewParams) (*Client, error) {
 	}
 	c.Client.BaseURL = p.BaseURL
 	if p.AgentUsername != "" {
-		if err := agent.SetUpAuth(p.Client, p.BaseURL, p.AgentUsername); err != nil {
+		if err := agent.SetUpAuth(p.Client, &agent.AuthInfo{
+			Key: p.Client.Key,
+			Agents: []agent.Agent{{
+				URL:      p.BaseURL,
+				Username: p.AgentUsername,
+			}},
+		}); err != nil {
 			return nil, errgo.Notef(err, "cannot set up agent authentication")
 		}
 		c.permChecker = NewPermChecker(&c, p.CacheTime)

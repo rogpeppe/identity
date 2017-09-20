@@ -57,7 +57,7 @@ type PublicKeyResponse struct {
 	PublicKey *bakery.PublicKey
 }
 
-// LoginMethods holds the response from the /v1/login endpoint
+// LoginMethods holds the response from the /login endpoint
 // when called with "Accept: application/json". This enumerates
 // the available methods for the client to log in.
 type LoginMethods struct {
@@ -69,10 +69,14 @@ type LoginMethods struct {
 	// interact with the login process.
 	Interactive string `json:"interactive,omitempty"`
 
-	// UbuntuSSO OAuth is the endpoint to send a request, signed with
+	// UbuntuSSOOAuth is the endpoint to send a request, signed with
 	// UbuntuSSO OAuth credentials, to if the client wishes to use
 	// oauth to log in to Identity Manager. Ubuntu SSO uses oauth 1.0.
 	UbuntuSSOOAuth string `json:"usso_oauth,omitempty"`
+
+	// UbuntuSSODischarge allows login to be performed by discharging
+	// a macaroon with a third-party caveat addressed to Ubuntu SSO.
+	UbuntuSSODischarge string `json:"usso_discharge,omitempty"`
 
 	// Form is the endpoint to GET a schema for a login form which
 	// can be presented to the user in an interactive manner. The

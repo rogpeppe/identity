@@ -6,7 +6,6 @@ package ussodischarge_test
 import (
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 
 	"github.com/juju/httprequest"
 	jc "github.com/juju/testing/checkers"
@@ -21,7 +20,7 @@ import (
 	"github.com/juju/idmclient/ussodischarge"
 )
 
-var _ httpbakery.Visitor = (*ussodischarge.Visitor)(nil)
+var _ httpbakery.Interactor = (*ussodischarge.Interactor)(nil)
 
 var testContext = context.Background()
 
@@ -82,36 +81,51 @@ func (s *clientSuite) TestMacaroonError(c *gc.C) {
 }
 
 func (s *clientSuite) TestVisitor(c *gc.C) {
-	v := ussodischarge.NewVisitor(func(_ *httpbakery.Client, url string) (macaroon.Slice, error) {
+	v := ussodischarge.NewInteractor(func(_ *httpbakery.Client, url string) (macaroon.Slice, error) {
 		c.Assert(url, gc.Equals, s.srv.URL+"/login")
 		return macaroon.Slice{s.testMacaroon.M()}, nil
 	})
-	u, err := url.Parse(s.srv.URL + "/login")
-	c.Assert(err, gc.Equals, nil)
+
 	client := httpbakery.NewClient()
-	err = v.VisitWebPage(testContext, client, map[string]*url.URL{ussodischarge.ProtocolName: u})
+	req, err := http.NewRequest("GET", "", nil)
 	c.Assert(err, gc.Equals, nil)
+	ierr := httpbakery.NewInteractionRequiredError(nil, req)
+	ussodischarge.SetInteraction(ierr, s.srv.URL+"/login")
+	dt, err := v.Interact(testContext, client, "", ierr)
+	c.Assert(err, gc.Equals, nil)
+	c.Assert(dt, jc.DeepEquals, &httpbakery.DischargeToken{
+		Kind:  "test-kind",
+		Value: []byte("test-value"),
+	})
 }
 
 func (s *clientSuite) TestVisitorMethodNotSupported(c *gc.C) {
-	v := ussodischarge.NewVisitor(func(_ *httpbakery.Client, url string) (macaroon.Slice, error) {
+	v := ussodischarge.NewInteractor(func(_ *httpbakery.Client, url string) (macaroon.Slice, error) {
 		return nil, errgo.New("function called unexpectedly")
 	})
 	client := httpbakery.NewClient()
-	err := v.VisitWebPage(testContext, client, map[string]*url.URL{})
-	c.Assert(errgo.Cause(err), gc.Equals, httpbakery.ErrMethodNotSupported)
+	req, err := http.NewRequest("GET", "", nil)
+	c.Assert(err, gc.Equals, nil)
+	ierr := httpbakery.NewInteractionRequiredError(nil, req)
+	ierr.SetInteraction("other", nil)
+	dt, err := v.Interact(testContext, client, "", ierr)
+	c.Assert(errgo.Cause(err), gc.Equals, httpbakery.ErrInteractionMethodNotFound)
+	c.Assert(dt, gc.IsNil)
 }
 
 func (s *clientSuite) TestVisitorFunctionError(c *gc.C) {
-	v := ussodischarge.NewVisitor(func(_ *httpbakery.Client, url string) (macaroon.Slice, error) {
+	v := ussodischarge.NewInteractor(func(_ *httpbakery.Client, url string) (macaroon.Slice, error) {
 		return nil, errgo.WithCausef(nil, testCause, "test error")
 	})
-	u, err := url.Parse(s.srv.URL + "/login")
-	c.Assert(err, gc.Equals, nil)
 	client := httpbakery.NewClient()
-	err = v.VisitWebPage(testContext, client, map[string]*url.URL{ussodischarge.ProtocolName: u})
+	req, err := http.NewRequest("GET", "", nil)
+	c.Assert(err, gc.Equals, nil)
+	ierr := httpbakery.NewInteractionRequiredError(nil, req)
+	ussodischarge.SetInteraction(ierr, s.srv.URL+"/login")
+	dt, err := v.Interact(testContext, client, "", ierr)
 	c.Assert(errgo.Cause(err), gc.Equals, testCause)
 	c.Assert(err, gc.ErrorMatches, "test error")
+	c.Assert(dt, gc.IsNil)
 }
 
 func (s *clientSuite) TestAcquireDischarge(c *gc.C) {
@@ -201,7 +215,12 @@ func (s *clientSuite) serveLogin(w http.ResponseWriter, r *http.Request) {
 	if id := lr.Login.Macaroons[0].Id(); string(id) != "test macaroon" {
 		fail(w, r, errgo.Newf("unexpected macaroon sent %q", string(id)))
 	}
-	w.WriteHeader(http.StatusOK)
+	httprequest.WriteJSON(w, http.StatusOK, ussodischarge.LoginResponse{
+		DischargeToken: &httpbakery.DischargeToken{
+			Kind:  "test-kind",
+			Value: []byte("test-value"),
+		},
+	})
 }
 
 func (s *clientSuite) serveDischarge(w http.ResponseWriter, r *http.Request) {

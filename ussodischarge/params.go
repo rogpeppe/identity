@@ -10,6 +10,7 @@ import (
 	"github.com/juju/httprequest"
 	errgo "gopkg.in/errgo.v1"
 	"gopkg.in/macaroon-bakery.v2-unstable/bakery"
+	"gopkg.in/macaroon-bakery.v2-unstable/httpbakery"
 	"gopkg.in/macaroon.v2-unstable"
 )
 
@@ -30,6 +31,11 @@ type LoginRequest struct {
 // Login is the body of a LoginRequest.
 type Login struct {
 	Macaroons macaroon.Slice `json:"macaroons,omitempty"`
+}
+
+// LoginResponse is the response to a LoginReuest.
+type LoginResponse struct {
+	DischargeToken *httpbakery.DischargeToken `json:"discharge-token"`
 }
 
 // ussoDischargeRequest is the request to Ubuntu SSO to discharge a

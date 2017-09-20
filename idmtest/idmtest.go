@@ -6,14 +6,15 @@
 package idmtest
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/juju/httprequest"
-	"github.com/juju/utils"
-	"github.com/julienschmidt/httprouter"
 	"golang.org/x/net/context"
 	"gopkg.in/errgo.v1"
 	"gopkg.in/macaroon-bakery.v2-unstable/bakery"
@@ -21,10 +22,15 @@ import (
 	"gopkg.in/macaroon-bakery.v2-unstable/bakerytest"
 	"gopkg.in/macaroon-bakery.v2-unstable/httpbakery"
 	"gopkg.in/macaroon-bakery.v2-unstable/httpbakery/agent"
+	macaroon "gopkg.in/macaroon.v2-unstable"
 
 	"github.com/juju/idmclient"
 	"github.com/juju/idmclient/params"
 )
+
+// GroupListGroup is the group that users must belong to in order to
+// enquire about other users' groups.
+const GroupListGroup = "group-lister"
 
 // Server represents a mock identity server.
 // It currently serves only the discharge and groups endpoints.
@@ -36,16 +42,13 @@ type Server struct {
 	// PublicKey holds the public key of the mock identity server.
 	PublicKey *bakery.PublicKey
 
-	// Router holds the HTTP router used to
-	// handle the server's HTTP requests. This
-	// may be modified to add more handlers.
-	Router *httprouter.Router
-
 	// Bakery holds the macaroon bakery used by
 	// the mock server.
 	Bakery *bakery.Bakery
 
-	discharger *bakerytest.InteractiveDischarger
+	checker *bakery.Checker
+
+	discharger *bakerytest.Discharger
 
 	// mu guards the fields below it.
 	mu          sync.Mutex
@@ -63,12 +66,10 @@ type user struct {
 // The returned server should be closed after use.
 func NewServer() *Server {
 	srv := &Server{
-		users:  make(map[string]*user),
-		Router: httprouter.New(),
+		users: make(map[string]*user),
 	}
-	srv.discharger = bakerytest.NewInteractiveDischarger(nil, http.HandlerFunc(srv.serveVisit))
-	srv.discharger.SetChecker(httpbakery.ThirdPartyCaveatCheckerFunc(srv.checkThirdPartyCaveat))
-	srv.discharger.Mux.Handle("/", srv.Router)
+	srv.discharger = bakerytest.NewDischarger(nil)
+	srv.discharger.Checker = httpbakery.ThirdPartyCaveatCheckerFunc(srv.checkThirdPartyCaveat)
 	u, err := url.Parse(srv.discharger.Location())
 	if err != nil {
 		panic(err)
@@ -80,39 +81,23 @@ func NewServer() *Server {
 		panic(err)
 	}
 	srv.PublicKey = &key.Public
-	for _, route := range reqServer.Handlers(srv.newHandler) {
-		srv.Router.Handle(route.Method, route.Path, route.Handle)
-	}
+	srv.discharger.AddHTTPHandlers(reqServer.Handlers(srv.newHandler))
 	srv.Bakery = bakery.New(bakery.BakeryParams{
+		Checker:        checker,
 		Locator:        srv,
 		Key:            key,
 		IdentityClient: srv.IDMClient("noone"),
 	})
+	srv.checker = bakery.NewChecker(bakery.CheckerParams{
+		Checker:        checker,
+		IdentityClient: identityClient{srv},
+		Authorizer: bakery.ACLAuthorizer{
+			AllowPublic: true,
+			GetACL:      srv.getACL,
+		},
+		MacaroonOpStore: srv.Bakery.Oven,
+	})
 	return srv
-}
-
-func (srv *Server) newHandler(p httprequest.Params) (*handler, context.Context, error) {
-	if err := srv.checkLogin(p.Context, p.Request); err != nil {
-		return nil, nil, errgo.Mask(err, errgo.Any)
-	}
-	return &handler{srv}, p.Context, nil
-}
-
-func (srv *Server) checkLogin(ctx context.Context, req *http.Request) error {
-	_, authErr := srv.Bakery.Checker.Auth(httpbakery.RequestMacaroons(req)...).Allow(context.TODO(), bakery.LoginOp)
-	if authErr == nil {
-		return nil
-	}
-	derr, ok := errgo.Cause(authErr).(*bakery.DischargeRequiredError)
-	if !ok {
-		return errgo.Mask(authErr)
-	}
-	version := httpbakery.RequestVersion(req)
-	m, err := srv.Bakery.Oven.NewMacaroon(ctx, version, ages, derr.Caveats, derr.Ops...)
-	if err != nil {
-		return errgo.Notef(err, "cannot create macaroon")
-	}
-	return httpbakery.NewDischargeRequiredErrorWithVersion(m, "", authErr, version)
 }
 
 var reqServer = httprequest.Server{
@@ -214,7 +199,13 @@ func (srv *Server) Client(username string) *httpbakery.Client {
 	c.Key = u.key
 	// Note that this duplicates the SetUpAuth that idmclient.New will do
 	// but that shouldn't matter as SetUpAuth is idempotent.
-	agent.SetUpAuth(c, srv.URL.String(), username)
+	agent.SetUpAuth(c, &agent.AuthInfo{
+		Key: u.key,
+		Agents: []agent.Agent{{
+			URL:      srv.URL.String(),
+			Username: username,
+		}},
+	})
 	return c
 }
 
@@ -284,6 +275,101 @@ func (srv *Server) user(name string) *user {
 	return srv.users[name]
 }
 
+func (srv *Server) getACL(ctx context.Context, op bakery.Op) ([]string, error) {
+	switch op.Action {
+	case "login":
+		return []string{bakery.Everyone}, nil
+	case "list-groups":
+		return []string{strings.TrimPrefix(op.Entity, "user-"), GroupListGroup}, nil
+	default:
+		return nil, errgo.New("unrecognised operation")
+	}
+}
+
+func (srv *Server) checkThirdPartyCaveat(ctx context.Context, req *http.Request, info *bakery.ThirdPartyCaveatInfo, token *httpbakery.DischargeToken) ([]checkers.Caveat, error) {
+	if srv.defaultUser != "" {
+		return []checkers.Caveat{
+			idmclient.UserDeclaration(srv.defaultUser),
+		}, nil
+	}
+	dischargeID := srv.dischargeID(info)
+	ctx = contextWithDischargeID(ctx, dischargeID)
+	if token == nil || token.Kind != "agent" {
+		ierr := httpbakery.NewInteractionRequiredError(nil, req)
+		agent.SetInteraction(ierr, "/login/agent?discharge-id="+dischargeID)
+		return nil, ierr
+	}
+	var ms macaroon.Slice
+	if err := ms.UnmarshalBinary(token.Value); err != nil {
+		return nil, errgo.Mask(err)
+	}
+	ops, _, err := srv.Bakery.Oven.MacaroonOps(ctx, ms)
+	if err != nil {
+		return nil, errgo.Mask(err)
+	}
+	username := ""
+	for _, op := range ops {
+		if strings.HasPrefix(op.Entity, "user-") && op.Action == "discharge" {
+			username = strings.TrimPrefix(op.Entity, "user-")
+			break
+		}
+	}
+	_, err = srv.Bakery.Checker.Auth(ms).Allow(
+		ctx,
+		bakery.Op{
+			Entity: "user-" + username,
+			Action: "discharge",
+		},
+	)
+	if err != nil {
+		return nil, errgo.Mask(err)
+	}
+	return []checkers.Caveat{
+		idmclient.UserDeclaration(username),
+	}, nil
+}
+
+func (srv *Server) dischargeID(info *bakery.ThirdPartyCaveatInfo) string {
+	sum := sha256.Sum256(info.Caveat)
+	return fmt.Sprintf("%x", sum[:4])
+}
+
+func (srv *Server) newHandler(p httprequest.Params, req interface{}) (*handler, context.Context, error) {
+	_, err := srv.checker.Auth(httpbakery.RequestMacaroons(p.Request)...).Allow(p.Context, srv.opForRequest(req))
+	if err == nil {
+		return &handler{srv}, p.Context, nil
+	}
+	derr, ok := errgo.Cause(err).(*bakery.DischargeRequiredError)
+	if !ok {
+		return nil, p.Context, errgo.Mask(err)
+	}
+	version := httpbakery.RequestVersion(p.Request)
+	m, err := srv.Bakery.Oven.NewMacaroon(p.Context, version, ages, derr.Caveats, derr.Ops...)
+	if err != nil {
+		return nil, p.Context, errgo.Notef(err, "cannot create macaroon")
+	}
+	return nil, p.Context, httpbakery.NewDischargeRequiredErrorWithVersion(m, "", err, version)
+}
+
+func (srv *Server) opForRequest(req interface{}) bakery.Op {
+	switch r := req.(type) {
+	case *agentMacaroonRequest:
+		return agentLoginOp
+	case *groupsRequest:
+		return bakery.Op{
+			Entity: "user-" + r.User,
+			Action: "list-groups",
+		}
+	default:
+		panic("unrecognised request")
+	}
+}
+
+var agentLoginOp = bakery.Op{
+	Entity: "agent",
+	Action: "login",
+}
+
 type handler struct {
 	srv *Server
 }
@@ -294,98 +380,47 @@ type groupsRequest struct {
 }
 
 func (h handler) GetGroups(p httprequest.Params, req *groupsRequest) ([]string, error) {
-	if err := h.checkRequest(p.Context, p.Request); err != nil {
-		return nil, err
-	}
 	if u := h.srv.user(req.User); u != nil {
 		return u.groups, nil
 	}
 	return nil, params.ErrNotFound
 }
 
-func (h handler) checkRequest(ctx context.Context, req *http.Request) error {
-	_, err := h.srv.Bakery.Checker.Auth(httpbakery.RequestMacaroons(req)...).Allow(ctx, bakery.LoginOp)
-	if err == nil {
-		return nil
-	}
-	return h.maybeDischargeRequiredError(ctx, req, err)
-}
-
-func (h handler) maybeDischargeRequiredError(ctx context.Context, req *http.Request, checkErr error) error {
-	derr, ok := errgo.Cause(checkErr).(*bakery.DischargeRequiredError)
-	if !ok {
-		return errgo.Mask(checkErr)
-	}
-	m, err := h.srv.Bakery.Oven.NewMacaroon(
-		ctx,
-		httpbakery.RequestVersion(req),
-		time.Now().Add(time.Hour),
-		derr.Caveats,
-		derr.Ops...,
-	)
-	if err != nil {
-		return errgo.Notef(err, "cannot create macaroon")
-	}
-	mpath, err := utils.RelativeURLPath(req.URL.Path, "/")
-	if err != nil {
-		return errgo.Mask(err)
-	}
-	err = httpbakery.NewDischargeRequiredErrorForRequest(m, mpath, checkErr, req)
-	err.(*httpbakery.Error).Info.CookieNameSuffix = "idm"
-	return err
-}
-
 var ages = time.Now().Add(time.Hour)
 
-// serveVisit implements the default login handler which deals with agent login.
-func (srv *Server) serveVisit(w http.ResponseWriter, req *http.Request) {
-	// TODO take context from request.
-	ctx := httpbakery.ContextWithRequest(context.TODO(), req)
-	if err := srv.serveVisit0(ctx, w, req); err != nil {
-		reqServer.WriteError(ctx, w, err)
-		return
-	}
-	httprequest.WriteJSON(w, http.StatusOK, map[string]bool{"agent_login": true})
+// agentMacaroonRequest represents a request to get the
+// agent macaroon that, when discharged, becomes
+// the discharge token to complete the discharge.
+type agentMacaroonRequest struct {
+	httprequest.Route `httprequest:"GET /login/agent"`
+	Username          string            `httprequest:"username,form"`
+	PublicKey         *bakery.PublicKey `httprequest:"public-key,form"`
+	DischargeID       string            `httprequest:"discharge-id,form"`
 }
 
-func (srv *Server) checkThirdPartyCaveat(ctx context.Context, req *http.Request, cav *bakery.ThirdPartyCaveatInfo) ([]checkers.Caveat, error) {
-	srv.mu.Lock()
-	defaultUser := srv.defaultUser
-	srv.mu.Unlock()
-	_, _, err := agent.LoginCookie(req)
-	if err == nil || defaultUser == "" {
-		return srv.discharger.CheckThirdPartyCaveat(ctx, req, cav)
+type agentMacaroonResponse struct {
+	Macaroon *bakery.Macaroon `json:"macaroon"`
+}
+
+// Visit implements http.Handler. It performs the agent login interaction flow.
+func (h handler) Visit(p httprequest.Params, req *agentMacaroonRequest) (*agentMacaroonResponse, error) {
+	m, err := h.srv.Bakery.Oven.NewMacaroon(
+		p.Context,
+		httpbakery.RequestVersion(p.Request),
+		ages,
+		[]checkers.Caveat{
+			dischargeIDCaveat(req.DischargeID),
+			bakery.LocalThirdPartyCaveat(req.PublicKey, httpbakery.RequestVersion(p.Request)),
+		},
+		bakery.Op{
+			Entity: "user-" + req.Username,
+			Action: "discharge",
+		},
+	)
+	if err != nil {
+		return nil, errgo.Mask(err)
 	}
-	return []checkers.Caveat{
-		idmclient.UserDeclaration(srv.defaultUser),
+	return &agentMacaroonResponse{
+		Macaroon: m,
 	}, nil
-}
-
-func (srv *Server) serveVisit0(ctx context.Context, w http.ResponseWriter, req *http.Request) error {
-	username, userPublicKey, err := agent.LoginCookie(req)
-	if err != nil {
-		return errgo.Notef(err, "cannot find agent login cookie")
-	}
-	loginOp := bakery.Op{
-		Entity: "agent-" + username,
-		Action: "login",
-	}
-	_, authErr := srv.Bakery.Checker.Auth(httpbakery.RequestMacaroons(req)...).Allow(ctx, loginOp)
-	if authErr == nil {
-		cavs := []checkers.Caveat{
-			idmclient.UserDeclaration(username),
-		}
-		srv.discharger.FinishInteraction(ctx, w, req, cavs, nil)
-		return nil
-	}
-	// Issue short-term macaroon that grants access for this particular
-	// agent login operation.
-	version := httpbakery.RequestVersion(req)
-	m, err := srv.Bakery.Oven.NewMacaroon(ctx, version, ages, []checkers.Caveat{
-		bakery.LocalThirdPartyCaveat(userPublicKey, version),
-	}, loginOp)
-	if err != nil {
-		return errgo.Notef(err, "cannot create macaroon")
-	}
-	return httpbakery.NewDischargeRequiredErrorWithVersion(m, "", authErr, version)
 }

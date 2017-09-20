@@ -8,16 +8,14 @@ package ussologin
 import (
 	"encoding/json"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"path/filepath"
 
-	"github.com/juju/httprequest"
 	"github.com/juju/usso"
+	"golang.org/x/net/context"
 	"gopkg.in/errgo.v1"
 	"gopkg.in/juju/environschema.v1"
 	"gopkg.in/juju/environschema.v1/form"
-	"gopkg.in/macaroon-bakery.v2-unstable/httpbakery"
 )
 
 type tokenGetter interface {
@@ -33,14 +31,25 @@ var (
 	otpKey  = "Two-factor auth (Enter for none)"
 )
 
+// A FormTokenGetter is a TokenGetter implementation that presents a form
+// to the user to get login details, and then uses those to get a token
+// from Ubuntu SSO.
+type FormTokenGetter struct {
+	Filler form.Filler
+	Name   string
+}
+
 // GetToken uses filler to interact with the user and uses the provided
 // information to obtain an OAuth token from Ubuntu SSO. The returned
 // token can subsequently be used with LoginWithToken to perform a login.
 // The tokenName argument is used as the name of the generated token in
 // Ubuntu SSO. If Ubuntu SSO returned an error when trying to retrieve
 // the token the error will have a cause of type *usso.Error.
-func GetToken(filler form.Filler, tokenName string) (*usso.SSOData, error) {
-	login, err := filler.Fill(loginForm)
+func (g FormTokenGetter) GetToken(ctx context.Context) (*usso.SSOData, error) {
+	if g.Name == "" {
+		g.Name = "idmclient"
+	}
+	login, err := g.Filler.Fill(loginForm)
 	if err != nil {
 		return nil, errgo.Notef(err, "cannot read login parameters")
 	}
@@ -48,7 +57,7 @@ func GetToken(filler form.Filler, tokenName string) (*usso.SSOData, error) {
 		login[userKey].(string),
 		login[passKey].(string),
 		login[otpKey].(string),
-		tokenName,
+		g.Name,
 	)
 
 	if err != nil {
@@ -83,41 +92,42 @@ var loginForm = form.Form{
 	},
 }
 
-// LoginWithToken completes a login attempt using tok. The ussoAuthURL
-// should have been obtained from the UbuntuSSOOAuth field in a response
-// to a LoginMethods request from the target service.
-func LoginWithToken(client *http.Client, ussoAuthUrl string, tok *usso.SSOData) error {
-	req, err := http.NewRequest("GET", ussoAuthUrl, nil)
-	if err != nil {
-		return errgo.Notef(err, "cannot create request")
-	}
-	base := *req.URL
-	base.RawQuery = ""
-	rp := usso.RequestParameters{
-		HTTPMethod:      req.Method,
-		BaseURL:         base.String(),
-		Params:          req.URL.Query(),
-		SignatureMethod: usso.HMACSHA1{},
-	}
-	if err := tok.SignRequest(&rp, req); err != nil {
-		return errgo.Notef(err, "cannot sign request")
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return errgo.Notef(err, "cannot do request")
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusOK {
-		return nil
-	}
-	var herr httpbakery.Error
-	if err := httprequest.UnmarshalJSONResponse(resp, &herr); err != nil {
-		return errgo.Notef(err, "cannot unmarshal error")
-	}
-	return &herr
+// A TokenGetter is used to fetch a Ubuntu SSO OAuth token.
+type TokenGetter interface {
+	GetToken(context.Context) (*usso.SSOData, error)
 }
 
-// TokenStore defines the interface for something that can store and returns oauth tokens.
+// A StoreTokenGetter is a TokenGetter that will try to retrieve the
+// token from some storage, before falling back to another TokenGetter.
+// If the fallback TokenGetter sucessfully retrieves a token then that
+// token will be put in the store.
+type StoreTokenGetter struct {
+	Store       TokenStore
+	TokenGetter TokenGetter
+}
+
+// GetToken implements TokenGetter.GetToken. A token is first attmepted
+// to retireve from the store. If a stored token is not available then
+// GetToken will fallback to TokenGetter.GetToken (if configured).
+func (g StoreTokenGetter) GetToken(ctx context.Context) (*usso.SSOData, error) {
+	tok, err := g.Store.Get()
+	if err == nil {
+		return tok, nil
+	}
+	if g.TokenGetter == nil {
+		return nil, errgo.Mask(err, errgo.Any)
+	}
+	tok, err = g.TokenGetter.GetToken(ctx)
+	if err == nil {
+		// Ignore any errors storing the token, the user will
+		// just have to get it again next time.
+		g.Store.Put(tok)
+	}
+	return tok, errgo.Mask(err, errgo.Any)
+}
+
+// TokenStore defines the interface for something that can store and
+// returns oauth tokens.
 type TokenStore interface {
 	// Put stores an Ubuntu SSO OAuth token.
 	Put(tok *usso.SSOData) error

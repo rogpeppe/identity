@@ -4,174 +4,120 @@
 package ussologin_test
 
 import (
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 
+	"github.com/juju/httprequest"
 	"github.com/juju/testing"
 	jc "github.com/juju/testing/checkers"
 	"github.com/juju/usso"
 	"golang.org/x/net/context"
 	gc "gopkg.in/check.v1"
-	"gopkg.in/juju/environschema.v1/form"
+	errgo "gopkg.in/errgo.v1"
 	"gopkg.in/macaroon-bakery.v2-unstable/httpbakery"
 
-	"github.com/juju/idmclient/params"
 	"github.com/juju/idmclient/ussologin"
 )
 
-type visitWebPageSuite struct {
+type interactorSuite struct {
 	testing.CleanupSuite
-	server *httptest.Server
 }
 
-var _ = gc.Suite(&visitWebPageSuite{})
+var _ = gc.Suite(&interactorSuite{})
 
-func (s *visitWebPageSuite) SetUpTest(c *gc.C) {
-	s.server = httptest.NewServer(&loginMethodsHandler{"http://example.com"})
+func (s *interactorSuite) TestKind(c *gc.C) {
+	i := ussologin.NewInteractor(nil)
+	c.Assert(i.Kind(), gc.Equals, "usso_oauth")
 }
 
-func (s *visitWebPageSuite) TearDownTest(c *gc.C) {
-	s.server.Close()
+func (s *interactorSuite) TestInteractNotSupportedError(c *gc.C) {
+	i := ussologin.NewInteractor(nil)
+	req, err := http.NewRequest("GET", "", nil)
+	c.Assert(err, gc.Equals, nil)
+	ierr := httpbakery.NewInteractionRequiredError(nil, req)
+	httpbakery.SetLegacyInteraction(ierr, "", "")
+	_, err = i.Interact(context.Background(), nil, "", ierr)
+	c.Assert(errgo.Cause(err), gc.Equals, httpbakery.ErrInteractionMethodNotFound)
 }
 
-func (s *visitWebPageSuite) TestCorrectUserPasswordSentToUSSOServer(c *gc.C) {
-	ussoStub := &ussoServerStub{}
-	s.PatchValue(ussologin.Server, ussoStub)
-	filler := &testFiller{
-		map[string]interface{}{
-			ussologin.UserKey: "foobar",
-			ussologin.PassKey: "pass",
-			ussologin.OTPKey:  "1234",
-		}}
-	store := &testTokenStore{}
-	f := ussologin.VisitWebPage(context.TODO(), "testToken", &http.Client{}, filler, store)
-	u, err := url.Parse(s.server.URL)
-	c.Assert(err, jc.ErrorIsNil)
-	err = f(u)
-	c.Assert(err, jc.ErrorIsNil)
-	ussoStub.CheckCall(c, 0, "GetTokenWithOTP", "foobar", "pass", "1234", "testToken")
-	store.CheckCallNames(c, "Get", "Put")
+func (s *interactorSuite) TestInteractGetTokenError(c *gc.C) {
+	terr := errgo.New("test error")
+	i := ussologin.NewInteractor(tokenGetterFunc(func(_ context.Context) (*usso.SSOData, error) {
+		return nil, terr
+	}))
+	ierr := s.interactionRequiredError(c, "")
+	_, err := i.Interact(context.Background(), nil, "", ierr)
+	c.Assert(errgo.Cause(err), gc.Equals, terr)
 }
 
-func (s *visitWebPageSuite) TestLoginFailsToGetToken(c *gc.C) {
-	ussoStub := &ussoServerStub{}
-	ussoStub.SetErrors(errors.New("something failed"))
-	s.PatchValue(ussologin.Server, ussoStub)
-	filler := &testFiller{
-		map[string]interface{}{
-			ussologin.UserKey: "foobar",
-			ussologin.PassKey: "pass",
-			ussologin.OTPKey:  "1234",
-		}}
-	f := ussologin.VisitWebPage(context.TODO(), "testToken", &http.Client{}, filler, &testTokenStore{})
-	u, err := url.Parse(s.server.URL)
-	c.Assert(err, jc.ErrorIsNil)
-	err = f(u)
-	c.Assert(err, gc.ErrorMatches, "cannot get token: something failed")
+func (s *interactorSuite) TestAuthenticatedRequest(c *gc.C) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		// Just check the request has a correct looking
+		// Authorization header, we won't check the signature.
+		c.Check(req.Header.Get("Authorization"), gc.Matches, "OAuth .*")
+		httprequest.WriteJSON(w, http.StatusOK, ussologin.LoginResponse{
+			DischargeToken: &httpbakery.DischargeToken{
+				Kind:  "test",
+				Value: []byte("test-token"),
+			},
+		})
+	}))
+	defer server.Close()
+
+	i := ussologin.NewInteractor(tokenGetterFunc(func(_ context.Context) (*usso.SSOData, error) {
+		return &usso.SSOData{
+			ConsumerKey:    "test-user",
+			ConsumerSecret: "test-user-secret",
+			Realm:          "test",
+			TokenKey:       "test-token",
+			TokenName:      "test",
+			TokenSecret:    "test-token-secret",
+		}, nil
+	}))
+	ierr := s.interactionRequiredError(c, server.URL)
+	dt, err := i.Interact(context.Background(), httpbakery.NewClient(), "", ierr)
+	c.Assert(err, gc.Equals, nil)
+	c.Assert(dt, jc.DeepEquals, &httpbakery.DischargeToken{
+		Kind:  "test",
+		Value: []byte("test-token"),
+	})
 }
 
-func (s *visitWebPageSuite) TestLoginWithExistingToken(c *gc.C) {
-	ussoStub := &ussoServerStub{}
-	s.PatchValue(ussologin.Server, ussoStub)
-	f := ussologin.VisitWebPage(context.TODO(), "testToken", &http.Client{}, &testFiller{}, &testTokenStore{tok: &usso.SSOData{}})
-	u, err := url.Parse(s.server.URL)
-	c.Assert(err, jc.ErrorIsNil)
-	err = f(u)
-	c.Assert(err, jc.ErrorIsNil)
-	ussoStub.CheckNoCalls(c) //If we have a token we shouldn't call the ussoServer
+func (s *interactorSuite) TestAuthenticatedRequestError(c *gc.C) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		// Just check the request has a correct looking
+		// Authorization header, we won't check the signature.
+		c.Check(req.Header.Get("Authorization"), gc.Matches, "OAuth .*")
+		code, body := httpbakery.ErrorToResponse(context.Background(), errgo.New("test error"))
+		httprequest.WriteJSON(w, code, body)
+	}))
+	defer server.Close()
+
+	i := ussologin.NewInteractor(tokenGetterFunc(func(_ context.Context) (*usso.SSOData, error) {
+		return &usso.SSOData{
+			ConsumerKey:    "test-user",
+			ConsumerSecret: "test-user-secret",
+			Realm:          "test",
+			TokenKey:       "test-token",
+			TokenName:      "test",
+			TokenSecret:    "test-token-secret",
+		}, nil
+	}))
+	ierr := s.interactionRequiredError(c, server.URL)
+	_, err := i.Interact(context.Background(), httpbakery.NewClient(), "", ierr)
+	c.Assert(err, gc.ErrorMatches, `Get http.*: test error`)
 }
 
-func (s *visitWebPageSuite) TestLoginWithExistingMalformedToken(c *gc.C) {
-	ussoStub := &ussoServerStub{}
-	s.PatchValue(ussologin.Server, ussoStub)
-	filler := &testFiller{
-		map[string]interface{}{
-			ussologin.UserKey: "foobar",
-			ussologin.PassKey: "pass",
-			ussologin.OTPKey:  "1234",
-		}}
-	tokenPath := fmt.Sprintf("%s/token", c.MkDir())
-	err := ioutil.WriteFile(tokenPath, []byte("foobar"), 0600) // Write a malformed token
-	c.Assert(err, jc.ErrorIsNil)
-	f := ussologin.VisitWebPage(context.TODO(), "testToken", &http.Client{}, filler, ussologin.NewFileTokenStore(tokenPath))
-	u, err := url.Parse(s.server.URL)
-	c.Assert(err, jc.ErrorIsNil)
-	err = f(u)
-	c.Assert(err, jc.ErrorIsNil)
-	ussoStub.CheckCall(c, 0, "GetTokenWithOTP", "foobar", "pass", "1234", "testToken")
+func (s *interactorSuite) interactionRequiredError(c *gc.C, url string) *httpbakery.Error {
+	req, err := http.NewRequest("GET", "", nil)
+	c.Assert(err, gc.Equals, nil)
+	ierr := httpbakery.NewInteractionRequiredError(nil, req)
+	ussologin.SetInteraction(ierr, url)
+	return ierr
 }
 
-func (s *visitWebPageSuite) TestVisitWebPageWorksIfNilStoreGiven(c *gc.C) {
-	ussoStub := &ussoServerStub{}
-	s.PatchValue(ussologin.Server, ussoStub)
-	filler := &testFiller{
-		map[string]interface{}{
-			ussologin.UserKey: "foobar",
-			ussologin.PassKey: "pass",
-			ussologin.OTPKey:  "1234",
-		}}
-	f := ussologin.VisitWebPage(context.TODO(), "testToken", &http.Client{}, filler, nil)
-	u, err := url.Parse(s.server.URL)
-	c.Assert(err, jc.ErrorIsNil)
-	err = f(u)
-	c.Assert(err, jc.ErrorIsNil)
-	ussoStub.CheckCall(c, 0, "GetTokenWithOTP", "foobar", "pass", "1234", "testToken")
+type tokenGetterFunc func(ctx context.Context) (*usso.SSOData, error)
+
+func (f tokenGetterFunc) GetToken(ctx context.Context) (*usso.SSOData, error) {
+	return f(ctx)
 }
-
-func (s *visitWebPageSuite) TestFailedToReadLoginParameters(c *gc.C) {
-	ussoStub := &ussoServerStub{}
-	s.PatchValue(ussologin.Server, ussoStub)
-	filler := &errFiller{}
-	f := ussologin.VisitWebPage(context.TODO(), "testToken", &http.Client{}, filler, &testTokenStore{})
-	u, err := url.Parse(s.server.URL)
-	c.Assert(err, jc.ErrorIsNil)
-	err = f(u)
-	c.Assert(err, gc.ErrorMatches, "cannot read login parameters: something failed")
-	ussoStub.CheckNoCalls(c)
-}
-
-type testFiller struct {
-	form map[string]interface{}
-}
-
-func (t *testFiller) Fill(f form.Form) (map[string]interface{}, error) {
-	return t.form, nil
-}
-
-type errFiller struct{}
-
-func (t *errFiller) Fill(f form.Form) (map[string]interface{}, error) {
-	return nil, errors.New("something failed")
-}
-
-type ussoServerStub struct {
-	testing.Stub
-}
-
-func (u *ussoServerStub) GetTokenWithOTP(email, password, otp, tokenName string) (*usso.SSOData, error) {
-	u.AddCall("GetTokenWithOTP", email, password, otp, tokenName)
-	return &usso.SSOData{}, u.NextErr()
-}
-
-type loginMethodsHandler struct {
-	responseURL string
-}
-
-func (l *loginMethodsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	lm := params.LoginMethods{
-		UbuntuSSOOAuth: l.responseURL,
-	}
-	writer := json.NewEncoder(w)
-	err := writer.Encode(&lm)
-	if err != nil {
-		panic(err)
-	}
-}
-
-var _ httpbakery.Visitor = &ussologin.Visitor{}
