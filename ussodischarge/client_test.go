@@ -21,6 +21,7 @@ import (
 )
 
 var _ httpbakery.Interactor = (*ussodischarge.Interactor)(nil)
+var _ httpbakery.LegacyInteractor = (*ussodischarge.Interactor)(nil)
 
 var testContext = context.Background()
 

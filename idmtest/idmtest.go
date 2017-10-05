@@ -92,8 +92,7 @@ func NewServer() *Server {
 		Checker:        checker,
 		IdentityClient: identityClient{srv},
 		Authorizer: bakery.ACLAuthorizer{
-			AllowPublic: true,
-			GetACL:      srv.getACL,
+			GetACL: srv.getACL,
 		},
 		MacaroonOpStore: srv.Bakery.Oven,
 	})
@@ -275,14 +274,14 @@ func (srv *Server) user(name string) *user {
 	return srv.users[name]
 }
 
-func (srv *Server) getACL(ctx context.Context, op bakery.Op) ([]string, error) {
+func (srv *Server) getACL(ctx context.Context, op bakery.Op) ([]string, bool, error) {
 	switch op.Action {
 	case "login":
-		return []string{bakery.Everyone}, nil
+		return []string{bakery.Everyone}, true, nil
 	case "list-groups":
-		return []string{strings.TrimPrefix(op.Entity, "user-"), GroupListGroup}, nil
+		return []string{strings.TrimPrefix(op.Entity, "user-"), GroupListGroup}, true, nil
 	default:
-		return nil, errgo.New("unrecognised operation")
+		return nil, false, errgo.New("unrecognised operation")
 	}
 }
 
@@ -348,7 +347,11 @@ func (srv *Server) newHandler(p httprequest.Params, req interface{}) (*handler, 
 	if err != nil {
 		return nil, p.Context, errgo.Notef(err, "cannot create macaroon")
 	}
-	return nil, p.Context, httpbakery.NewDischargeRequiredErrorWithVersion(m, "", err, version)
+	return nil, p.Context, httpbakery.NewDischargeRequiredError(httpbakery.DischargeRequiredErrorParams{
+		Macaroon:      m,
+		OriginalError: err,
+		Request:       p.Request,
+	})
 }
 
 func (srv *Server) opForRequest(req interface{}) bakery.Op {
