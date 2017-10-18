@@ -6,6 +6,8 @@
 package ussodischarge
 
 import (
+	stdurl "net/url"
+
 	"github.com/juju/httprequest"
 	"golang.org/x/net/context"
 	errgo "gopkg.in/errgo.v1"
@@ -14,7 +16,7 @@ import (
 	"gopkg.in/macaroon.v2-unstable"
 )
 
-const protocolName = "usso_discharge"
+const protocolName = "usso_macaroon"
 
 // Macaroon returns a macaroon from the identity provider at the given
 // URL that can be discharged using a Discharger. If doer is non-nil
@@ -77,6 +79,24 @@ func (i *Interactor) Interact(ctx context.Context, client *httpbakery.Client, lo
 		},
 	}, &resp)
 	return resp.DischargeToken, errgo.Mask(err)
+}
+
+// LegacyInteract implements httpbakery.LegacyInteractor
+// for the Interactor.
+func (i *Interactor) LegacyInteract(ctx context.Context, client *httpbakery.Client, location string, visitURL *stdurl.URL) error {
+	ms, err := i.f(client, visitURL.String())
+	if err != nil {
+		return errgo.Mask(err, errgo.Any)
+	}
+	cl := httprequest.Client{
+		Doer: client,
+	}
+	err = cl.CallURL(ctx, visitURL.String(), &LoginRequest{
+		Login: Login{
+			Macaroons: ms,
+		},
+	}, nil)
+	return errgo.Mask(err)
 }
 
 // Discharger is a client that can discharge Ubuntu SSO third-party

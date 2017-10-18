@@ -4,11 +4,12 @@
 package idmtest
 
 import (
-	"github.com/juju/idmclient"
 	"golang.org/x/net/context"
 	errgo "gopkg.in/errgo.v1"
 	"gopkg.in/macaroon-bakery.v2-unstable/bakery"
 	"gopkg.in/macaroon-bakery.v2-unstable/bakery/checkers"
+
+	"github.com/juju/idmclient"
 )
 
 // identityClient implement bakery.IdentityClient. This is used because
