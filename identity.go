@@ -2,7 +2,7 @@ package idmclient
 
 import (
 	"golang.org/x/net/context"
-	"gopkg.in/macaroon-bakery.v2-unstable/bakery"
+	"gopkg.in/macaroon-bakery.v2-unstable/bakery/identchecker"
 )
 
 // Identity represents a IDM identity. It includes bakery.ACLIdentity but
@@ -13,7 +13,7 @@ import (
 // name, but client code should not rely on it doing that - eventually
 // it will return an opaque user identifier rather than the user name.
 type Identity interface {
-	bakery.ACLIdentity
+	identchecker.ACLIdentity
 
 	// Username returns the user name of the user.
 	Username() (string, error)

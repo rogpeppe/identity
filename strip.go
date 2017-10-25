@@ -5,11 +5,11 @@ import (
 
 	"golang.org/x/net/context"
 	"gopkg.in/errgo.v1"
-	"gopkg.in/macaroon-bakery.v2-unstable/bakery"
 	"gopkg.in/macaroon-bakery.v2-unstable/bakery/checkers"
+	"gopkg.in/macaroon-bakery.v2-unstable/bakery/identchecker"
 )
 
-// StripDomain returns an implementation of bakery.IdentityClient
+// StripDomain returns an implementation of identchecker.IdentityClient
 // that strips the given
 // domain name off any user and group names returned from it. It also
 // adds it as an @ suffix when querying for ACL membership for names
@@ -18,7 +18,7 @@ import (
 // This is useful when an existing user of the identity manager needs to
 // obtain backwardly compatible usernames when an identity manager is
 // changed to add a domain suffix.
-func StripDomain(idmClient *Client, domain string) bakery.IdentityClient {
+func StripDomain(idmClient *Client, domain string) identchecker.IdentityClient {
 	return &domainStrippingClient{
 		domain: "@" + domain,
 		c:      idmClient,
@@ -33,7 +33,7 @@ type domainStrippingClient struct {
 }
 
 // DeclaredIdentity implements IdentityClient.DeclaredIdentity.
-func (c *domainStrippingClient) DeclaredIdentity(ctx context.Context, attrs map[string]string) (bakery.Identity, error) {
+func (c *domainStrippingClient) DeclaredIdentity(ctx context.Context, attrs map[string]string) (identchecker.Identity, error) {
 	ident0, err := c.c.DeclaredIdentity(ctx, attrs)
 	if err != nil {
 		return nil, err
@@ -45,7 +45,7 @@ func (c *domainStrippingClient) DeclaredIdentity(ctx context.Context, attrs map[
 }
 
 // DeclaredIdentity implements IdentityClient.IdentityCaveats.
-func (c *domainStrippingClient) IdentityFromContext(ctx context.Context) (bakery.Identity, []checkers.Caveat, error) {
+func (c *domainStrippingClient) IdentityFromContext(ctx context.Context) (identchecker.Identity, []checkers.Caveat, error) {
 	return c.c.IdentityFromContext(ctx)
 }
 

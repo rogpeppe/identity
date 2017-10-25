@@ -11,8 +11,8 @@ import (
 	"github.com/juju/httprequest"
 	"golang.org/x/net/context"
 	"gopkg.in/errgo.v1"
-	"gopkg.in/macaroon-bakery.v2-unstable/bakery"
 	"gopkg.in/macaroon-bakery.v2-unstable/bakery/checkers"
+	"gopkg.in/macaroon-bakery.v2-unstable/bakery/identchecker"
 	"gopkg.in/macaroon-bakery.v2-unstable/httpbakery"
 	"gopkg.in/macaroon-bakery.v2-unstable/httpbakery/agent"
 
@@ -27,7 +27,7 @@ const (
 )
 
 // Client represents the client of an identity server.
-// It implements the bakery.IdentityClient interface, so can
+// It implements the identchecker.IdentityClient interface, so can
 // be used directly to provide authentication for macaroon-based
 // services.
 type Client struct {
@@ -38,7 +38,7 @@ type Client struct {
 	permChecker *PermChecker
 }
 
-var _ bakery.IdentityClient = (*Client)(nil)
+var _ identchecker.IdentityClient = (*Client)(nil)
 
 // NewParams holds the parameters for creating a new client.
 type NewParams struct {
@@ -85,16 +85,16 @@ func New(p NewParams) (*Client, error) {
 	return &c, nil
 }
 
-// IdentityFromContext implements bakery.IdentityClient.IdentityFromContext
+// IdentityFromContext implements identchecker.IdentityClient.IdentityFromContext
 // by returning caveats created by IdentityCaveats.
-func (c *Client) IdentityFromContext(ctx context.Context) (bakery.Identity, []checkers.Caveat, error) {
+func (c *Client) IdentityFromContext(ctx context.Context) (identchecker.Identity, []checkers.Caveat, error) {
 	return nil, IdentityCaveats(c.Client.BaseURL), nil
 }
 
 // DeclaredIdentity implements IdentityClient.DeclaredIdentity.
 // On success, it returns a value that implements Identity as
-// well as bakery.Identity.
-func (c *Client) DeclaredIdentity(ctx context.Context, declared map[string]string) (bakery.Identity, error) {
+// well as identchecker.Identity.
+func (c *Client) DeclaredIdentity(ctx context.Context, declared map[string]string) (identchecker.Identity, error) {
 	username := declared["username"]
 	if username == "" {
 		return nil, errgo.Newf("no declared user name in %q", declared)

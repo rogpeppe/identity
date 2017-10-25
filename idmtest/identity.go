@@ -6,13 +6,13 @@ package idmtest
 import (
 	"golang.org/x/net/context"
 	errgo "gopkg.in/errgo.v1"
-	"gopkg.in/macaroon-bakery.v2-unstable/bakery"
 	"gopkg.in/macaroon-bakery.v2-unstable/bakery/checkers"
+	"gopkg.in/macaroon-bakery.v2-unstable/bakery/identchecker"
 
 	"github.com/juju/idmclient"
 )
 
-// identityClient implement bakery.IdentityClient. This is used because
+// identityClient implement identchecker.IdentityClient. This is used because
 // the idmtest server cannot use idmcliemt.Client because that uses the
 // groups endpoint, which cannot be used because that would lead to an
 // infinite recursion.
@@ -20,11 +20,11 @@ type identityClient struct {
 	srv *Server
 }
 
-func (i identityClient) IdentityFromContext(ctx context.Context) (bakery.Identity, []checkers.Caveat, error) {
+func (i identityClient) IdentityFromContext(ctx context.Context) (identchecker.Identity, []checkers.Caveat, error) {
 	return nil, idmclient.IdentityCaveats(i.srv.URL.String()), nil
 }
 
-func (i identityClient) DeclaredIdentity(ctx context.Context, declared map[string]string) (bakery.Identity, error) {
+func (i identityClient) DeclaredIdentity(ctx context.Context, declared map[string]string) (identchecker.Identity, error) {
 	username := declared["username"]
 	if username == "" {
 		return nil, errgo.Newf("no declared user name in %q", declared)
@@ -48,7 +48,7 @@ func (i identity) Domain() string {
 	return ""
 }
 
-// Allow implements bakery.ACLIdentity.Allow.
+// Allow implements identchecker.ACLIdentity.Allow.
 func (i identity) Allow(_ context.Context, acl []string) (bool, error) {
 	groups := []string{i.id}
 	u := i.srv.users[i.id]

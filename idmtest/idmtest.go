@@ -12,17 +12,17 @@ import (
 	"net/url"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/juju/httprequest"
 	"golang.org/x/net/context"
 	"gopkg.in/errgo.v1"
 	"gopkg.in/macaroon-bakery.v2-unstable/bakery"
 	"gopkg.in/macaroon-bakery.v2-unstable/bakery/checkers"
+	"gopkg.in/macaroon-bakery.v2-unstable/bakery/identchecker"
 	"gopkg.in/macaroon-bakery.v2-unstable/bakerytest"
 	"gopkg.in/macaroon-bakery.v2-unstable/httpbakery"
 	"gopkg.in/macaroon-bakery.v2-unstable/httpbakery/agent"
-	macaroon "gopkg.in/macaroon.v2-unstable"
+	macaroon "gopkg.in/macaroon.v2"
 
 	"github.com/juju/idmclient"
 	"github.com/juju/idmclient/params"
@@ -44,9 +44,7 @@ type Server struct {
 
 	// Bakery holds the macaroon bakery used by
 	// the mock server.
-	Bakery *bakery.Bakery
-
-	checker *bakery.Checker
+	Bakery *identchecker.Bakery
 
 	discharger *bakerytest.Discharger
 
@@ -82,19 +80,14 @@ func NewServer() *Server {
 	}
 	srv.PublicKey = &key.Public
 	srv.discharger.AddHTTPHandlers(reqServer.Handlers(srv.newHandler))
-	srv.Bakery = bakery.New(bakery.BakeryParams{
+	srv.Bakery = identchecker.NewBakery(identchecker.BakeryParams{
 		Checker:        checker,
 		Locator:        srv,
 		Key:            key,
-		IdentityClient: srv.IDMClient("noone"),
-	})
-	srv.checker = bakery.NewChecker(bakery.CheckerParams{
-		Checker:        checker,
 		IdentityClient: identityClient{srv},
-		Authorizer: bakery.ACLAuthorizer{
+		Authorizer: identchecker.ACLAuthorizer{
 			GetACL: srv.getACL,
 		},
-		MacaroonOpStore: srv.Bakery.Oven,
 	})
 	return srv
 }
@@ -277,7 +270,7 @@ func (srv *Server) user(name string) *user {
 func (srv *Server) getACL(ctx context.Context, op bakery.Op) ([]string, bool, error) {
 	switch op.Action {
 	case "login":
-		return []string{bakery.Everyone}, true, nil
+		return []string{identchecker.Everyone}, true, nil
 	case "list-groups":
 		return []string{strings.TrimPrefix(op.Entity, "user-"), GroupListGroup}, true, nil
 	default:
@@ -302,7 +295,7 @@ func (srv *Server) checkThirdPartyCaveat(ctx context.Context, req *http.Request,
 	if err := ms.UnmarshalBinary(token.Value); err != nil {
 		return nil, errgo.Mask(err)
 	}
-	ops, _, err := srv.Bakery.Oven.MacaroonOps(ctx, ms)
+	ops, _, err := srv.Bakery.Oven.VerifyMacaroon(ctx, ms)
 	if err != nil {
 		return nil, errgo.Mask(err)
 	}
@@ -334,7 +327,7 @@ func (srv *Server) dischargeID(info *bakery.ThirdPartyCaveatInfo) string {
 }
 
 func (srv *Server) newHandler(p httprequest.Params, req interface{}) (*handler, context.Context, error) {
-	_, err := srv.checker.Auth(httpbakery.RequestMacaroons(p.Request)...).Allow(p.Context, srv.opForRequest(req))
+	_, err := srv.Bakery.Checker.Auth(httpbakery.RequestMacaroons(p.Request)...).Allow(p.Context, srv.opForRequest(req))
 	if err == nil {
 		return &handler{srv}, p.Context, nil
 	}
@@ -343,7 +336,7 @@ func (srv *Server) newHandler(p httprequest.Params, req interface{}) (*handler, 
 		return nil, p.Context, errgo.Mask(err)
 	}
 	version := httpbakery.RequestVersion(p.Request)
-	m, err := srv.Bakery.Oven.NewMacaroon(p.Context, version, ages, derr.Caveats, derr.Ops...)
+	m, err := srv.Bakery.Oven.NewMacaroon(p.Context, version, derr.Caveats, derr.Ops...)
 	if err != nil {
 		return nil, p.Context, errgo.Notef(err, "cannot create macaroon")
 	}
@@ -389,8 +382,6 @@ func (h handler) GetGroups(p httprequest.Params, req *groupsRequest) ([]string, 
 	return nil, params.ErrNotFound
 }
 
-var ages = time.Now().Add(time.Hour)
-
 // agentMacaroonRequest represents a request to get the
 // agent macaroon that, when discharged, becomes
 // the discharge token to complete the discharge.
@@ -410,7 +401,6 @@ func (h handler) Visit(p httprequest.Params, req *agentMacaroonRequest) (*agentM
 	m, err := h.srv.Bakery.Oven.NewMacaroon(
 		p.Context,
 		httpbakery.RequestVersion(p.Request),
-		ages,
 		[]checkers.Caveat{
 			dischargeIDCaveat(req.DischargeID),
 			bakery.LocalThirdPartyCaveat(req.PublicKey, httpbakery.RequestVersion(p.Request)),
