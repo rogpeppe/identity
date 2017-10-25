@@ -2,13 +2,13 @@ package idmclient_test
 
 import (
 	"sort"
-	"time"
 
 	jc "github.com/juju/testing/checkers"
 	"golang.org/x/net/context"
 	gc "gopkg.in/check.v1"
 	"gopkg.in/errgo.v1"
 	"gopkg.in/macaroon-bakery.v2-unstable/bakery"
+	"gopkg.in/macaroon-bakery.v2-unstable/bakery/identchecker"
 	"gopkg.in/macaroon-bakery.v2-unstable/httpbakery"
 
 	"github.com/juju/idmclient"
@@ -52,18 +52,18 @@ func (*clientSuite) TestIdentityClientWithDomainStripNoDomains(c *gc.C) {
 // testIdentityClient tests that the given identity client can be used to
 // create a third party caveat that when discharged provides
 // an Identity with the given id, user name and groups.
-func testIdentityClient(c *gc.C, idmClient bakery.IdentityClient, bclient *httpbakery.Client, expectId, expectUser string, expectGroups []string) {
+func testIdentityClient(c *gc.C, idmClient identchecker.IdentityClient, bclient *httpbakery.Client, expectId, expectUser string, expectGroups []string) {
 	kr := httpbakery.NewThirdPartyLocator(nil, nil)
 	kr.AllowInsecure()
-	b := bakery.New(bakery.BakeryParams{
+	b := identchecker.NewBakery(identchecker.BakeryParams{
 		Locator:        kr,
 		Key:            bakery.MustGenerateKey(),
 		IdentityClient: idmClient,
 	})
-	_, authErr := b.Checker.Auth().Allow(context.TODO(), bakery.LoginOp)
+	_, authErr := b.Checker.Auth().Allow(context.TODO(), identchecker.LoginOp)
 	derr := errgo.Cause(authErr).(*bakery.DischargeRequiredError)
 
-	m, err := b.Oven.NewMacaroon(context.TODO(), bakery.LatestVersion, time.Now().Add(time.Minute), derr.Caveats, derr.Ops...)
+	m, err := b.Oven.NewMacaroon(context.TODO(), bakery.LatestVersion, derr.Caveats, derr.Ops...)
 	c.Assert(err, gc.IsNil)
 
 	ms, err := bclient.DischargeAll(context.TODO(), m)
@@ -71,7 +71,7 @@ func testIdentityClient(c *gc.C, idmClient bakery.IdentityClient, bclient *httpb
 
 	// Make sure that the macaroon discharged correctly and that it
 	// has the right declared caveats.
-	authInfo, err := b.Checker.Auth(ms).Allow(context.TODO(), bakery.LoginOp)
+	authInfo, err := b.Checker.Auth(ms).Allow(context.TODO(), identchecker.LoginOp)
 	c.Assert(err, gc.IsNil)
 
 	c.Assert(authInfo.Identity, gc.NotNil)

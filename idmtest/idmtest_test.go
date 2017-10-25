@@ -4,12 +4,11 @@
 package idmtest_test
 
 import (
-	"time"
-
 	jc "github.com/juju/testing/checkers"
 	"golang.org/x/net/context"
 	gc "gopkg.in/check.v1"
 	"gopkg.in/macaroon-bakery.v2-unstable/bakery"
+	"gopkg.in/macaroon-bakery.v2-unstable/bakery/identchecker"
 	"gopkg.in/macaroon-bakery.v2-unstable/httpbakery"
 
 	"github.com/juju/idmclient"
@@ -30,7 +29,7 @@ func (*suite) TestDischarge(c *gc.C) {
 
 	key, err := bakery.GenerateKey()
 	c.Assert(err, gc.IsNil)
-	b := bakery.New(bakery.BakeryParams{
+	b := identchecker.NewBakery(identchecker.BakeryParams{
 		Key:            key,
 		Locator:        srv,
 		IdentityClient: srv.IDMClient("server-user"),
@@ -38,9 +37,8 @@ func (*suite) TestDischarge(c *gc.C) {
 	m, err := b.Oven.NewMacaroon(
 		ctx,
 		bakery.LatestVersion,
-		time.Now().Add(time.Minute),
 		idmclient.IdentityCaveats(srv.URL.String()),
-		bakery.LoginOp,
+		identchecker.LoginOp,
 	)
 	c.Assert(err, gc.IsNil)
 
@@ -49,7 +47,7 @@ func (*suite) TestDischarge(c *gc.C) {
 
 	// Make sure that the macaroon discharged correctly and that it
 	// has the right declared caveats.
-	authInfo, err := b.Checker.Auth(ms).Allow(ctx, bakery.LoginOp)
+	authInfo, err := b.Checker.Auth(ms).Allow(ctx, identchecker.LoginOp)
 	c.Assert(err, gc.IsNil)
 	c.Assert(authInfo.Identity, gc.NotNil)
 	ident := authInfo.Identity.(idmclient.Identity)
@@ -69,7 +67,7 @@ func (*suite) TestDischargeDefaultUser(c *gc.C) {
 
 	key, err := bakery.GenerateKey()
 	c.Assert(err, gc.IsNil)
-	b := bakery.New(bakery.BakeryParams{
+	b := identchecker.NewBakery(identchecker.BakeryParams{
 		Key:            key,
 		Locator:        srv,
 		IdentityClient: srv.IDMClient("server-user"),
@@ -77,9 +75,8 @@ func (*suite) TestDischargeDefaultUser(c *gc.C) {
 	m, err := b.Oven.NewMacaroon(
 		ctx,
 		bakery.LatestVersion,
-		time.Now().Add(time.Minute),
 		idmclient.IdentityCaveats(srv.URL.String()),
-		bakery.LoginOp,
+		identchecker.LoginOp,
 	)
 	c.Assert(err, gc.IsNil)
 
@@ -89,7 +86,7 @@ func (*suite) TestDischargeDefaultUser(c *gc.C) {
 
 	// Make sure that the macaroon discharged correctly and that it
 	// has the right declared caveats.
-	authInfo, err := b.Checker.Auth(ms).Allow(ctx, bakery.LoginOp)
+	authInfo, err := b.Checker.Auth(ms).Allow(ctx, identchecker.LoginOp)
 	c.Assert(err, gc.IsNil)
 	c.Assert(authInfo.Identity, gc.NotNil)
 	ident := authInfo.Identity.(idmclient.Identity)
