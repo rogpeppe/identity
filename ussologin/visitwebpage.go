@@ -11,7 +11,7 @@ import (
 	"github.com/juju/usso"
 	"golang.org/x/net/context"
 	"gopkg.in/errgo.v1"
-	"gopkg.in/macaroon-bakery.v2-unstable/httpbakery"
+	"gopkg.in/macaroon-bakery.v2/httpbakery"
 )
 
 const interactionMethod = "usso_oauth"
