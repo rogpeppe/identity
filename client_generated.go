@@ -6,7 +6,7 @@ package idmclient
 import (
 	"github.com/juju/httprequest"
 	"golang.org/x/net/context"
-	"gopkg.in/macaroon-bakery.v2-unstable/bakery"
+	"gopkg.in/macaroon-bakery.v2/bakery"
 
 	"github.com/juju/idmclient/params"
 )
