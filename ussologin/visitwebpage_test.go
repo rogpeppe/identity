@@ -7,13 +7,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"github.com/juju/httprequest"
 	"github.com/juju/testing"
 	jc "github.com/juju/testing/checkers"
 	"github.com/juju/usso"
 	"golang.org/x/net/context"
 	gc "gopkg.in/check.v1"
 	errgo "gopkg.in/errgo.v1"
+	"gopkg.in/httprequest.v1"
 	"gopkg.in/macaroon-bakery.v2/httpbakery"
 
 	"github.com/juju/idmclient/ussologin"
