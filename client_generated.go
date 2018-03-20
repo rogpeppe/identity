@@ -6,13 +6,20 @@ package idmclient
 import (
 	"golang.org/x/net/context"
 	"gopkg.in/httprequest.v1"
-	"gopkg.in/macaroon-bakery.v2/bakery"
-
 	"gopkg.in/juju/idmclient.v1/params"
+	"gopkg.in/macaroon-bakery.v2/bakery"
 )
 
 type client struct {
 	Client httprequest.Client
+}
+
+// CreateAgent creates a new agent and returns the newly chosen username
+// for the agent.
+func (c *client) CreateAgent(ctx context.Context, p *params.CreateAgentRequest) (*params.CreateAgentResponse, error) {
+	var r *params.CreateAgentResponse
+	err := c.Client.Call(ctx, p, &r)
+	return r, err
 }
 
 // DeleteSSHKeys removes all of the ssh keys specified from the keys
@@ -59,12 +66,13 @@ func (c *client) QueryUsers(ctx context.Context, p *params.QueryUsersRequest) ([
 	return r, err
 }
 
-// SetUser creates or updates the user with the given username. If the
+// SetUserDeprecated creates or updates the user with the given username. If the
 // user already exists then any IDPGroups or SSHKeys specified in the
 // request will be ignored. See SetUserGroups, ModifyUserGroups,
 // SetSSHKeys and DeleteSSHKeys if you wish to manipulate these for a
 // user.
-func (c *client) SetUser(ctx context.Context, p *params.SetUserRequest) error {
+// TODO change this into a create-agent function.
+func (c *client) SetUserDeprecated(ctx context.Context, p *params.SetUserRequest) error {
 	return c.Client.Call(ctx, p, nil)
 }
 
