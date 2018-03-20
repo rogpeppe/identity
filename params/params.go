@@ -129,11 +129,32 @@ type User struct {
 	LastDischarge *time.Time          `json:"last_discharge,omitempty"`
 }
 
-// SetUserRequest is request to set the details of a user.
+// SetUserRequest is a request to set the details of a user.
+// This endpoint is no longer functional.
 type SetUserRequest struct {
 	httprequest.Route `httprequest:"PUT /v1/u/:username"`
 	Username          Username `httprequest:"username,path"`
 	User              `httprequest:",body"`
+}
+
+// CreateAgentRequest is a request to add an agent.
+type CreateAgentRequest struct {
+	httprequest.Route `httprequest:"POST /v1/u"`
+	CreateAgentBody   `httprequest:",body"`
+}
+
+// CreateAgentBody holds the body of a CreateAgentRequest.
+// There must be at least one public key specified.
+type CreateAgentBody struct {
+	FullName   string              `json:"fullname"`
+	Groups     []string            `json:"idpgroups"`
+	PublicKeys []*bakery.PublicKey `json:"public_keys"`
+}
+
+// CreateAgentResponse holds the response from a
+// CreateAgentRequest.
+type CreateAgentResponse struct {
+	Username Username
 }
 
 // UserGroupsRequest is a request for the list of groups associated
