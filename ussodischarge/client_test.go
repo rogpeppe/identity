@@ -16,8 +16,8 @@ import (
 	"gopkg.in/macaroon-bakery.v2/httpbakery"
 	"gopkg.in/macaroon.v2"
 
-	"gopkg.in/juju/idmclient.v1/params"
-	"gopkg.in/juju/idmclient.v1/ussodischarge"
+	"gopkg.in/CanonicalLtd/candidclient.v1/params"
+	"gopkg.in/CanonicalLtd/candidclient.v1/ussodischarge"
 )
 
 var _ httpbakery.Interactor = (*ussodischarge.Interactor)(nil)

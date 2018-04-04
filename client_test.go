@@ -1,4 +1,4 @@
-package idmclient_test
+package candidclient_test
 
 import (
 	"sort"
@@ -11,8 +11,8 @@ import (
 	"gopkg.in/macaroon-bakery.v2/bakery/identchecker"
 	"gopkg.in/macaroon-bakery.v2/httpbakery"
 
-	"gopkg.in/juju/idmclient.v1"
-	"gopkg.in/juju/idmclient.v1/idmtest"
+	"gopkg.in/CanonicalLtd/candidclient.v1"
+	"gopkg.in/CanonicalLtd/candidclient.v1/candidtest"
 )
 
 type clientSuite struct{}
@@ -20,7 +20,7 @@ type clientSuite struct{}
 var _ = gc.Suite(&clientSuite{})
 
 func (*clientSuite) TestIdentityClient(c *gc.C) {
-	srv := idmtest.NewServer()
+	srv := candidtest.NewServer()
 	srv.AddUser("bob", "alice", "charlie")
 	testIdentityClient(c,
 		srv.IDMClient("bob"),
@@ -30,20 +30,20 @@ func (*clientSuite) TestIdentityClient(c *gc.C) {
 }
 
 func (*clientSuite) TestIdentityClientWithDomainStrip(c *gc.C) {
-	srv := idmtest.NewServer()
+	srv := candidtest.NewServer()
 	srv.AddUser("bob@usso", "alice@usso", "charlie@elsewhere")
 	testIdentityClient(c,
-		idmclient.StripDomain(srv.IDMClient("bob@usso"), "usso"),
+		candidclient.StripDomain(srv.IDMClient("bob@usso"), "usso"),
 		srv.Client("bob@usso"),
 		"bob@usso", "bob", []string{"alice", "charlie@elsewhere"},
 	)
 }
 
 func (*clientSuite) TestIdentityClientWithDomainStripNoDomains(c *gc.C) {
-	srv := idmtest.NewServer()
+	srv := candidtest.NewServer()
 	srv.AddUser("bob", "alice", "charlie")
 	testIdentityClient(c,
-		idmclient.StripDomain(srv.IDMClient("bob"), "usso"),
+		candidclient.StripDomain(srv.IDMClient("bob"), "usso"),
 		srv.Client("bob"),
 		"bob", "bob", []string{"alice", "charlie"},
 	)
@@ -52,13 +52,13 @@ func (*clientSuite) TestIdentityClientWithDomainStripNoDomains(c *gc.C) {
 // testIdentityClient tests that the given identity client can be used to
 // create a third party caveat that when discharged provides
 // an Identity with the given id, user name and groups.
-func testIdentityClient(c *gc.C, idmClient identchecker.IdentityClient, bclient *httpbakery.Client, expectId, expectUser string, expectGroups []string) {
+func testIdentityClient(c *gc.C, candidClient identchecker.IdentityClient, bclient *httpbakery.Client, expectId, expectUser string, expectGroups []string) {
 	kr := httpbakery.NewThirdPartyLocator(nil, nil)
 	kr.AllowInsecure()
 	b := identchecker.NewBakery(identchecker.BakeryParams{
 		Locator:        kr,
 		Key:            bakery.MustGenerateKey(),
-		IdentityClient: idmClient,
+		IdentityClient: candidClient,
 	})
 	_, authErr := b.Checker.Auth().Allow(context.TODO(), identchecker.LoginOp)
 	derr := errgo.Cause(authErr).(*bakery.DischargeRequiredError)
@@ -78,7 +78,7 @@ func testIdentityClient(c *gc.C, idmClient identchecker.IdentityClient, bclient 
 	c.Assert(authInfo.Identity.Id(), gc.Equals, expectId)
 	c.Assert(authInfo.Identity.Domain(), gc.Equals, "")
 
-	user := authInfo.Identity.(idmclient.Identity)
+	user := authInfo.Identity.(candidclient.Identity)
 
 	u, err := user.Username()
 	c.Assert(err, gc.IsNil)

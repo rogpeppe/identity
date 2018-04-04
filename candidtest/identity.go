@@ -1,7 +1,7 @@
 // Copyright 2017 Canonical Ltd.
 // Licensed under the LGPLv3, see LICENCE file for details.
 
-package idmtest
+package candidtest
 
 import (
 	"golang.org/x/net/context"
@@ -9,11 +9,11 @@ import (
 	"gopkg.in/macaroon-bakery.v2/bakery/checkers"
 	"gopkg.in/macaroon-bakery.v2/bakery/identchecker"
 
-	"gopkg.in/juju/idmclient.v1"
+	"gopkg.in/CanonicalLtd/candidclient.v1"
 )
 
 // identityClient implement identchecker.IdentityClient. This is used because
-// the idmtest server cannot use idmcliemt.Client because that uses the
+// the candidtest server cannot use candidcliemt.Client because that uses the
 // groups endpoint, which cannot be used because that would lead to an
 // infinite recursion.
 type identityClient struct {
@@ -21,7 +21,7 @@ type identityClient struct {
 }
 
 func (i identityClient) IdentityFromContext(ctx context.Context) (identchecker.Identity, []checkers.Caveat, error) {
-	return nil, idmclient.IdentityCaveats(i.srv.URL.String()), nil
+	return nil, candidclient.IdentityCaveats(i.srv.URL.String()), nil
 }
 
 func (i identityClient) DeclaredIdentity(ctx context.Context, declared map[string]string) (identchecker.Identity, error) {

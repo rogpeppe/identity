@@ -1,4 +1,4 @@
-package idmclient
+package candidclient
 
 import (
 	"strings"
@@ -18,10 +18,10 @@ import (
 // This is useful when an existing user of the identity manager needs to
 // obtain backwardly compatible usernames when an identity manager is
 // changed to add a domain suffix.
-func StripDomain(idmClient *Client, domain string) identchecker.IdentityClient {
+func StripDomain(candidClient *Client, domain string) identchecker.IdentityClient {
 	return &domainStrippingClient{
 		domain: "@" + domain,
-		c:      idmClient,
+		c:      candidClient,
 	}
 }
 

@@ -1,7 +1,7 @@
 // Copyright 2015 Canonical Ltd.
 // Licensed under the LGPLv3, see LICENCE file for details.
 
-package idmclient
+package candidclient
 
 import (
 	"sort"
@@ -11,7 +11,7 @@ import (
 	"golang.org/x/net/context"
 	"gopkg.in/errgo.v1"
 
-	"gopkg.in/juju/idmclient.v1/params"
+	"gopkg.in/CanonicalLtd/candidclient.v1/params"
 )
 
 // GroupCache holds a cache of group membership information.

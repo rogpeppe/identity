@@ -1,7 +1,7 @@
 // Copyright 2017 Canonical Ltd.
 // Licensed under the LGPLv3, see LICENCE file for details.
 
-package idmtest
+package candidtest
 
 import (
 	"golang.org/x/net/context"
@@ -9,14 +9,14 @@ import (
 	"gopkg.in/macaroon-bakery.v2/bakery/checkers"
 )
 
-const idmtestNamespace = "github.com/juju/idmclient/idmtest"
+const candidtestNamespace = "github.com/juju/candidclient/candidtest"
 
 var checker = newChecker()
 
 func newChecker() *checkers.Checker {
 	ch := checkers.New(nil)
-	ch.Namespace().Register(idmtestNamespace, "idmtest")
-	ch.Register("discharge-id", idmtestNamespace, checkDischargeID)
+	ch.Namespace().Register(candidtestNamespace, "candidtest")
+	ch.Register("discharge-id", candidtestNamespace, checkDischargeID)
 	return ch
 }
 
@@ -34,7 +34,7 @@ func dischargeIDFromContext(ctx context.Context) string {
 func dischargeIDCaveat(dischargeID string) checkers.Caveat {
 	return checkers.Caveat{
 		Condition: "discharge-id " + dischargeID,
-		Namespace: idmtestNamespace,
+		Namespace: candidtestNamespace,
 	}
 }
 

@@ -47,7 +47,7 @@ type FormTokenGetter struct {
 // the token the error will have a cause of type *usso.Error.
 func (g FormTokenGetter) GetToken(ctx context.Context) (*usso.SSOData, error) {
 	if g.Name == "" {
-		g.Name = "idmclient"
+		g.Name = "candidclient"
 	}
 	login, err := g.Filler.Fill(loginForm)
 	if err != nil {

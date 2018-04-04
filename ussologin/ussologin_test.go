@@ -17,7 +17,7 @@ import (
 	errgo "gopkg.in/errgo.v1"
 	"gopkg.in/juju/environschema.v1/form"
 
-	"gopkg.in/juju/idmclient.v1/ussologin"
+	"gopkg.in/CanonicalLtd/candidclient.v1/ussologin"
 )
 
 type storeSuite struct {

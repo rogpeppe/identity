@@ -1,7 +1,7 @@
 // Copyright 2015 Canonical Ltd.
 // Licensed under the LGPLv3, see LICENCE file for details.
 
-package idmtest_test
+package candidtest_test
 
 import (
 	jc "github.com/juju/testing/checkers"
@@ -11,9 +11,9 @@ import (
 	"gopkg.in/macaroon-bakery.v2/bakery/identchecker"
 	"gopkg.in/macaroon-bakery.v2/httpbakery"
 
-	"gopkg.in/juju/idmclient.v1"
-	"gopkg.in/juju/idmclient.v1/idmtest"
-	idmparams "gopkg.in/juju/idmclient.v1/params"
+	"gopkg.in/CanonicalLtd/candidclient.v1"
+	"gopkg.in/CanonicalLtd/candidclient.v1/candidtest"
+	candidparams "gopkg.in/CanonicalLtd/candidclient.v1/params"
 )
 
 type suite struct{}
@@ -22,8 +22,8 @@ var _ = gc.Suite(&suite{})
 
 func (*suite) TestDischarge(c *gc.C) {
 	ctx := context.TODO()
-	srv := idmtest.NewServer()
-	srv.AddUser("server-user", idmtest.GroupListGroup)
+	srv := candidtest.NewServer()
+	srv.AddUser("server-user", candidtest.GroupListGroup)
 	srv.AddUser("bob", "somegroup")
 	client := srv.Client("bob")
 
@@ -37,7 +37,7 @@ func (*suite) TestDischarge(c *gc.C) {
 	m, err := b.Oven.NewMacaroon(
 		ctx,
 		bakery.LatestVersion,
-		idmclient.IdentityCaveats(srv.URL.String()),
+		candidclient.IdentityCaveats(srv.URL.String()),
 		identchecker.LoginOp,
 	)
 	c.Assert(err, gc.IsNil)
@@ -50,7 +50,7 @@ func (*suite) TestDischarge(c *gc.C) {
 	authInfo, err := b.Checker.Auth(ms).Allow(ctx, identchecker.LoginOp)
 	c.Assert(err, gc.IsNil)
 	c.Assert(authInfo.Identity, gc.NotNil)
-	ident := authInfo.Identity.(idmclient.Identity)
+	ident := authInfo.Identity.(candidclient.Identity)
 	c.Assert(ident.Id(), gc.Equals, "bob")
 	username, err := ident.Username()
 	c.Assert(err, gc.IsNil)
@@ -62,7 +62,7 @@ func (*suite) TestDischarge(c *gc.C) {
 
 func (*suite) TestDischargeDefaultUser(c *gc.C) {
 	ctx := context.TODO()
-	srv := idmtest.NewServer()
+	srv := candidtest.NewServer()
 	srv.SetDefaultUser("bob")
 
 	key, err := bakery.GenerateKey()
@@ -75,7 +75,7 @@ func (*suite) TestDischargeDefaultUser(c *gc.C) {
 	m, err := b.Oven.NewMacaroon(
 		ctx,
 		bakery.LatestVersion,
-		idmclient.IdentityCaveats(srv.URL.String()),
+		candidclient.IdentityCaveats(srv.URL.String()),
 		identchecker.LoginOp,
 	)
 	c.Assert(err, gc.IsNil)
@@ -89,7 +89,7 @@ func (*suite) TestDischargeDefaultUser(c *gc.C) {
 	authInfo, err := b.Checker.Auth(ms).Allow(ctx, identchecker.LoginOp)
 	c.Assert(err, gc.IsNil)
 	c.Assert(authInfo.Identity, gc.NotNil)
-	ident := authInfo.Identity.(idmclient.Identity)
+	ident := authInfo.Identity.(candidclient.Identity)
 	c.Assert(ident.Id(), gc.Equals, "bob")
 	username, err := ident.Username()
 	c.Assert(err, gc.IsNil)
@@ -100,19 +100,19 @@ func (*suite) TestDischargeDefaultUser(c *gc.C) {
 }
 
 func (*suite) TestGroups(c *gc.C) {
-	srv := idmtest.NewServer()
-	srv.AddUser("server-user", idmtest.GroupListGroup)
+	srv := candidtest.NewServer()
+	srv.AddUser("server-user", candidtest.GroupListGroup)
 	srv.AddUser("bob", "beatles", "bobbins")
 	srv.AddUser("alice")
 
 	client := srv.IDMClient("server-user")
-	groups, err := client.UserGroups(context.TODO(), &idmparams.UserGroupsRequest{
+	groups, err := client.UserGroups(context.TODO(), &candidparams.UserGroupsRequest{
 		Username: "bob",
 	})
 	c.Assert(err, gc.IsNil)
 	c.Assert(groups, jc.DeepEquals, []string{"beatles", "bobbins"})
 
-	groups, err = client.UserGroups(context.TODO(), &idmparams.UserGroupsRequest{
+	groups, err = client.UserGroups(context.TODO(), &candidparams.UserGroupsRequest{
 		Username: "alice",
 	})
 	c.Assert(err, gc.IsNil)
@@ -120,13 +120,13 @@ func (*suite) TestGroups(c *gc.C) {
 }
 
 func (s *suite) TestAddUserWithExistingGroups(c *gc.C) {
-	srv := idmtest.NewServer()
+	srv := candidtest.NewServer()
 	srv.AddUser("alice", "anteaters")
 	srv.AddUser("alice")
 	srv.AddUser("alice", "goof", "anteaters")
 
 	client := srv.IDMClient("alice")
-	groups, err := client.UserGroups(context.TODO(), &idmparams.UserGroupsRequest{
+	groups, err := client.UserGroups(context.TODO(), &candidparams.UserGroupsRequest{
 		Username: "alice",
 	})
 	c.Assert(err, gc.IsNil)

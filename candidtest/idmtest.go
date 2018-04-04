@@ -1,9 +1,9 @@
 // Copyright 2015 Canonical Ltd.
 // Licensed under the LGPLv3, see LICENCE file for details.
 
-// Package idmtest holds a mock implementation of the identity manager
+// Package candidtest holds a mock implementation of the identity manager
 // suitable for testing.
-package idmtest
+package candidtest
 
 import (
 	"crypto/sha256"
@@ -24,8 +24,8 @@ import (
 	"gopkg.in/macaroon-bakery.v2/httpbakery/agent"
 	macaroon "gopkg.in/macaroon.v2"
 
-	"gopkg.in/juju/idmclient.v1"
-	"gopkg.in/juju/idmclient.v1/params"
+	"gopkg.in/CanonicalLtd/candidclient.v1"
+	"gopkg.in/CanonicalLtd/candidclient.v1/params"
 )
 
 // GroupListGroup is the group that users must belong to in order to
@@ -167,8 +167,8 @@ func (srv *Server) UserPublicKey(username string) *bakery.KeyPair {
 
 // IDMClient returns an identity manager client that takes
 // to the given server as the given user name.
-func (srv *Server) IDMClient(username string) *idmclient.Client {
-	c, err := idmclient.New(idmclient.NewParams{
+func (srv *Server) IDMClient(username string) *candidclient.Client {
+	c, err := candidclient.New(candidclient.NewParams{
 		BaseURL:       srv.URL.String(),
 		AgentUsername: username,
 		Client:        srv.Client(username),
@@ -189,7 +189,7 @@ func (srv *Server) Client(username string) *httpbakery.Client {
 		u = srv.user(username)
 	}
 	c.Key = u.key
-	// Note that this duplicates the SetUpAuth that idmclient.New will do
+	// Note that this duplicates the SetUpAuth that candidclient.New will do
 	// but that shouldn't matter as SetUpAuth is idempotent.
 	agent.SetUpAuth(c, &agent.AuthInfo{
 		Key: u.key,
@@ -281,7 +281,7 @@ func (srv *Server) getACL(ctx context.Context, op bakery.Op) ([]string, bool, er
 func (srv *Server) checkThirdPartyCaveat(ctx context.Context, req *http.Request, info *bakery.ThirdPartyCaveatInfo, token *httpbakery.DischargeToken) ([]checkers.Caveat, error) {
 	if srv.defaultUser != "" {
 		return []checkers.Caveat{
-			idmclient.UserDeclaration(srv.defaultUser),
+			candidclient.UserDeclaration(srv.defaultUser),
 		}, nil
 	}
 	dischargeID := srv.dischargeID(info)
@@ -317,7 +317,7 @@ func (srv *Server) checkThirdPartyCaveat(ctx context.Context, req *http.Request,
 		return nil, errgo.Mask(err)
 	}
 	return []checkers.Caveat{
-		idmclient.UserDeclaration(username),
+		candidclient.UserDeclaration(username),
 	}, nil
 }
 

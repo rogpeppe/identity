@@ -1,7 +1,7 @@
 // Copyright 2015 Canonical Ltd.
 // Licensed under the LGPLv3, see LICENCE file for details.
 
-package idmtest_test
+package candidtest_test
 
 import (
 	"testing"

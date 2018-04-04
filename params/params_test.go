@@ -6,7 +6,7 @@ package params_test
 import (
 	gc "gopkg.in/check.v1"
 
-	"gopkg.in/juju/idmclient.v1/params"
+	"gopkg.in/CanonicalLtd/candidclient.v1/params"
 )
 
 type paramsSuite struct{}
@@ -19,9 +19,9 @@ var usernameUnmarshalTests = []struct {
 }{{
 	username: "user",
 }, {
-	username: "admin@idm",
+	username: "admin@candid",
 }, {
-	username: "agent@admin@idm",
+	username: "agent@admin@candid",
 }, {
 	username:    "invalid username",
 	expectError: `illegal username "invalid username"`,

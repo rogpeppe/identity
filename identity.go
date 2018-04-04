@@ -1,4 +1,4 @@
-package idmclient
+package candidclient
 
 import (
 	"golang.org/x/net/context"

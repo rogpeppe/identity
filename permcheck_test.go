@@ -1,7 +1,7 @@
 // Copyright 2016 Canonical Ltd.
 // Licensed under the LGPLv3, see LICENCE file for details.
 
-package idmclient_test
+package candidclient_test
 
 import (
 	"time"
@@ -9,8 +9,8 @@ import (
 	jc "github.com/juju/testing/checkers"
 	gc "gopkg.in/check.v1"
 
-	"gopkg.in/juju/idmclient.v1"
-	"gopkg.in/juju/idmclient.v1/idmtest"
+	"gopkg.in/CanonicalLtd/candidclient.v1"
+	"gopkg.in/CanonicalLtd/candidclient.v1/candidtest"
 )
 
 type permCheckerSuite struct {
@@ -19,17 +19,17 @@ type permCheckerSuite struct {
 var _ = gc.Suite(&permCheckerSuite{})
 
 func (s *permCheckerSuite) TestPermChecker(c *gc.C) {
-	srv := idmtest.NewServer()
-	srv.AddUser("server-user", idmtest.GroupListGroup)
+	srv := candidtest.NewServer()
+	srv.AddUser("server-user", candidtest.GroupListGroup)
 	srv.AddUser("alice", "somegroup")
 
-	client, err := idmclient.New(idmclient.NewParams{
+	client, err := candidclient.New(candidclient.NewParams{
 		BaseURL: srv.URL.String(),
 		Client:  srv.Client("server-user"),
 	})
 	c.Assert(err, gc.IsNil)
 
-	pc := idmclient.NewPermChecker(client, time.Hour)
+	pc := candidclient.NewPermChecker(client, time.Hour)
 
 	// No permissions always yields false.
 	ok, err := pc.Allow("bob", nil)
@@ -83,17 +83,17 @@ func (s *permCheckerSuite) TestPermChecker(c *gc.C) {
 }
 
 func (s *permCheckerSuite) TestGroupCache(c *gc.C) {
-	srv := idmtest.NewServer()
-	srv.AddUser("server-user", idmtest.GroupListGroup)
+	srv := candidtest.NewServer()
+	srv.AddUser("server-user", candidtest.GroupListGroup)
 	srv.AddUser("alice", "somegroup", "othergroup")
 
-	client, err := idmclient.New(idmclient.NewParams{
+	client, err := candidclient.New(candidclient.NewParams{
 		BaseURL: srv.URL.String(),
 		Client:  srv.Client("server-user"),
 	})
 	c.Assert(err, gc.IsNil)
 
-	cache := idmclient.NewGroupCache(client, time.Hour)
+	cache := candidclient.NewGroupCache(client, time.Hour)
 
 	// If the user isn't found, we retturn no groups.
 	g, err := cache.Groups("bob")

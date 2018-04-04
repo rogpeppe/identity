@@ -16,7 +16,7 @@ import (
 	"gopkg.in/httprequest.v1"
 	"gopkg.in/macaroon-bakery.v2/httpbakery"
 
-	"gopkg.in/juju/idmclient.v1/ussologin"
+	"gopkg.in/CanonicalLtd/candidclient.v1/ussologin"
 )
 
 type interactorSuite struct {
